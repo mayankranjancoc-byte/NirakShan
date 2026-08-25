@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Uploads (user data)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Vendor repos (cloned separately)
+# backend/vendor/fastmrz/
+# backend/vendor/docauth/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

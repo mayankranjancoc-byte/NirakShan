@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Document Screening & Risk Analysis</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="shield-icon">🛡️</div>
+                <div>
+                    <h1>AI Document Screening & Identity Verification</h1>
+                    <p class="subtitle">Automated Border Control & Fraud Detection Prototype</p>
+                </div>
+            </div>
+            <div class="system-status">
+                <span class="status-indicator live"></span>
+                <span id="backend-status">Backend Active</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-grid">
+            <!-- Left Column: Upload Section -->
+            <section class="card upload-section">
+                <h2>Upload Evidence</h2>
+                <p class="section-desc">Submit document scan and optional live photo for multi-modal screening.</p>
+
+                <form id="screening-form">
+                    <!-- Document Upload Box -->
+                    <div class="form-group">
+                        <label class="field-label">Document Image <span class="required">*</span></label>
+                        <div class="dropzone" id="doc-dropzone">
+                            <input type="file" id="document-input" accept="image/*" required>
+                            <div class="dropzone-content">
+                                <div class="upload-icon">📄</div>
+                                <p class="drop-text">Drag & drop passport/ID, or <span>browse</span></p>
+                                <span class="file-hint">Supports JPG, PNG (Passports, Visas, TD1/2/3 IDs)</span>
+                            </div>
+                            <div class="preview-container hidden" id="doc-preview-wrap">
+                                <img id="doc-preview" alt="Document Preview">
+                                <button type="button" class="btn-remove" id="doc-remove-btn">&times;</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Selfie Upload Box -->
+                    <div class="form-group">
+                        <label class="field-label">Live Photo / Selfie <span class="optional">(Optional)</span></label>
+                        <div class="dropzone" id="selfie-dropzone">
+                            <input type="file" id="selfie-input" accept="image/*">
+                            <div class="dropzone-content">
+                                <div class="upload-icon">👤</div>
+                                <p class="drop-text">Drag & drop live selfie, or <span>browse</span></p>
+                                <span class="file-hint">For 1:1 facial biometric matching</span>
+                            </div>
+                            <div class="preview-container hidden" id="selfie-preview-wrap">
+                                <img id="selfie-preview" alt="Selfie Preview">
+                                <button type="button" class="btn-remove" id="selfie-remove-btn">&times;</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="submit-btn" class="btn-primary">
+                        <span class="btn-text">Run Security Screening</span>
+                        <span class="spinner hidden" id="loading-spinner"></span>
+                    </button>
+                </form>
+            </section>
+
+            <!-- Right Column: Results Section -->
+            <section class="card results-section">
+                <h2>Screening Verdict & Breakdown</h2>
+                
+                <div id="results-placeholder" class="placeholder-state">
+                    <div class="placeholder-icon">🔍</div>
+                    <h3>No Analysis Run Yet</h3>
+                    <p>Upload a document and initiate screening to view risk scores, tampering heuristics, and biometric verification.</p>
+                </div>
+
+                <div id="results-content" class="results-content hidden">
+                    <!-- Top Risk Gauge Banner -->
+                    <div class="verdict-banner" id="verdict-banner">
+                        <div class="score-dial">
+                            <span class="score-value" id="risk-score-val">0</span>
+                            <span class="score-label">/ 100 Risk</span>
+                        </div>
+                        <div class="verdict-details">
+                            <div class="verdict-badge" id="verdict-badge">LOW RISK</div>
+                            <div class="flags-list" id="flags-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- Risk Score Breakdown Table -->
+                    <div id="score-breakdown-container" style="margin-bottom: 20px; background: var(--card-bg); padding: 15px; border-radius: var(--border-radius); border: 1px solid var(--color-border);">
+                        <h4 style="margin-bottom: 10px; color: var(--text-primary); font-size: 0.95rem;">Risk Score Breakdown — how this score was calculated</h4>
+                        <table class="data-table" style="width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th style="text-align: left;">Component</th>
+                                    <th style="text-align: right;">Points</th>
+                                    <th style="text-align: right;">Max</th>
+                                    <th style="text-align: left;">Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody id="score-breakdown-body"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Tabs / Modules Breakdown -->
+                    <div class="module-cards-grid">
+                        <!-- Module 1+2: MRZ / OCR -->
+                        <div class="module-card">
+                            <div class="module-header">
+                                <h3>1. Document MRZ & Validation</h3>
+                                <span class="module-tag" id="ocr-badge">SUCCESS</span>
+                            </div>
+                            <div class="module-body" id="ocr-details">
+                                <table class="data-table">
+                                    <tbody id="ocr-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Module 3: Tampering / Forensics -->
+                        <div class="module-card">
+                            <div class="module-header">
+                                <h3>2. Forensics & Tamper Analysis</h3>
+                                <span class="module-tag" id="tamper-badge">AUTHENTIC</span>
+                            </div>
+                            <div class="module-body" id="tamper-details">
+                                <div class="tamper-metrics">
+                                    <div class="metric-item">
+                                        <span class="metric-name">Error Level Analysis (ELA)</span>
+                                        <span class="metric-val" id="metric-ela">0%</span>
+                                    </div>
+                                    <div class="metric-item">
+                                        <span class="metric-name">Edge Inconsistency</span>
+                                        <span class="metric-val" id="metric-edge">0%</span>
+                                    </div>
+                                    <div class="metric-item">
+                                        <span class="metric-name">Wavelet Texture Detail</span>
+                                        <span class="metric-val" id="metric-wavelet">0%</span>
+                                    </div>
+                                    <div class="metric-item">
+                                        <span class="metric-name">Copy-Move (ORB+RANSAC)</span>
+                                        <span class="metric-val" id="metric-copymove">0%</span>
+                                    </div>
+                                    <div class="metric-item" id="exif-metric-item" style="display: none;">
+                                        <span class="metric-name">EXIF Anomaly</span>
+                                        <span class="metric-val" id="metric-exif">0%</span>
+                                    </div>
+                                </div>
+                                <div id="ela-heatmap-container" class="hidden" style="margin-top: 15px;">
+                                    <p class="muted-text" style="font-size: 0.85rem; margin-bottom: 5px;">Forensic Heatmap — bright regions indicate compression anomalies consistent with tampering</p>
+                                    <img id="ela-heatmap-img" style="max-width: 100%; border: 1px solid var(--color-border);" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Module 4: Biometric Face Verification -->
+                        <div class="module-card">
+                            <div class="module-header">
+                                <h3>3. Face Biometrics (DeepFace)</h3>
+                                <span class="module-tag" id="face-badge">N/A</span>
+                            </div>
+                            <div class="module-body" id="face-details">
+                                <p id="face-summary" class="muted-text">No live selfie uploaded</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Collapsible Raw JSON Inspector -->
+                    <details class="json-inspector">
+                        <summary>View Complete Raw JSON Response</summary>
+                        <pre><code id="raw-json-output">{}</code></pre>
+                    </details>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
