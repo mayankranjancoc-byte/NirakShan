@@ -4,19 +4,39 @@ FastAPI Backend for Document Screening Prototype
 Endpoints:
   POST /screen-document  -- Upload document image + optional selfie, get risk assessment
   GET  /health           -- Liveness check
+  GET  /audit-log        -- Recent screening records (auth required)
 """
 
 import os
 import sys
 import uuid
 import shutil
+import hashlib
 import logging
+import threading
+from contextlib import asynccontextmanager
 
 import numpy as np
+from PIL import Image
 
 # Set environment variables before importing tensorflow
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["PYTHONIOENCODING"] = "utf-8"
+
+# ── Upload security constants ──────────────────────────────────────────────
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # 15 MB
+ALLOWED_CONTENT_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
+# Decompression-bomb guard: refuse images larger than 80 megapixels
+Image.MAX_IMAGE_PIXELS = 80_000_000
+
+# ── API key auth ───────────────────────────────────────────────────────────
+# Set NIRAKSHAN_API_KEY env var to enable. If unset, auth is bypassed (dev mode).
+API_KEY = os.environ.get("NIRAKSHAN_API_KEY", "")
 
 # Add vendor directory to path for DocAuth imports
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,10 +44,11 @@ VENDOR_DIR = os.path.join(BACKEND_DIR, "vendor", "docauth")
 if VENDOR_DIR not in sys.path:
     sys.path.insert(0, VENDOR_DIR)
 
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from modules.ocr_extraction import extract_document_fields, get_mrz_reader
 from modules.tampering_detection import analyze_tampering
@@ -44,34 +65,124 @@ UPLOAD_DIR = os.path.join(BACKEND_DIR, "uploads")
 FRONTEND_DIR = os.path.abspath(os.path.join(BACKEND_DIR, "..", "frontend"))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+# ── Lifespan: replaces deprecated @app.on_event("startup") ───────────────
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 1. Warm up the FastMRZ singleton
+    get_mrz_reader()
+    # 2. Force DeepFace to download weights in a background thread
+    def _bg_preload():
+        try:
+            blank = np.ones((112, 112, 3), dtype=np.uint8) * 255
+            from deepface import DeepFace
+            DeepFace.verify(
+                img1_path=blank, img2_path=blank, model_name="ArcFace",
+                detector_backend="retinaface", anti_spoofing=True,
+                enforce_detection=False, silent=True,
+            )
+        except Exception:
+            pass
+    threading.Thread(target=_bg_preload, daemon=True).start()
+    yield
+
+
 app = FastAPI(
-    title="Document Screening Prototype",
+    title="NirakShan Document Screening",
     description=(
         "AI-powered border document screening system. "
-        "Combines MRZ extraction (fastmrz), tampering detection (DocAuth), "
-        "and face verification (deepface) into a unified risk assessment."
+        "Combines MRZ extraction, tampering detection, "
+        "and face verification into a unified risk assessment."
     ),
-    version="0.1.0",
+    version="0.2.0",
+    lifespan=lifespan,
 )
 
-# CORS — allow frontend dev server
+# CORS — explicit origin allowlist; wildcard + credentials is invalid per spec
+ALLOWED_ORIGINS = os.environ.get(
+    "CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000"
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+
+# ── Auth dependency ────────────────────────────────────────────────────────
+_bearer = HTTPBearer(auto_error=False)
+
+async def _require_auth(
+    cred: HTTPAuthorizationCredentials = Security(_bearer),
+) -> None:
+    """Reject requests without a valid Bearer token when API_KEY is set."""
+    if not API_KEY:
+        return  # Dev mode: auth disabled
+    if cred is None or cred.credentials != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
 def _save_upload(upload: UploadFile) -> str:
-    """Save an uploaded file to disk and return the path."""
-    ext = os.path.splitext(upload.filename or "file.jpg")[1] or ".jpg"
-    filename = f"{uuid.uuid4().hex}{ext}"
-    filepath = os.path.join(UPLOAD_DIR, filename)
-    with open(filepath, "wb") as f:
-        shutil.copyfileobj(upload.file, f)
+    """
+    Validate and save an uploaded file to disk.
+    Enforces: content-type allowlist, 15 MB size cap, decodability check.
+    Path traversal is not possible — basename is a fresh uuid4.
+    """
+    ct = (upload.content_type or "").split(";")[0].strip().lower()
+    if ct not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported media type '{ct}'. Allowed: {sorted(ALLOWED_CONTENT_TYPES)}",
+        )
+    ext = ALLOWED_CONTENT_TYPES[ct]
+    filepath = os.path.join(UPLOAD_DIR, f"{uuid.uuid4().hex}{ext}")
+
+    written = 0
+    try:
+        with open(filepath, "wb") as f:
+            while True:
+                chunk = upload.file.read(1024 * 1024)  # 1 MB chunks
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > MAX_UPLOAD_BYTES:
+                    f.close()
+                    os.remove(filepath)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File exceeds {MAX_UPLOAD_BYTES // (1024*1024)} MB limit",
+                    )
+                f.write(chunk)
+
+        # Verify the bytes are actually a decodable image
+        try:
+            with Image.open(filepath) as probe:
+                probe.verify()
+        except Exception as img_err:
+            os.remove(filepath)
+            raise HTTPException(
+                status_code=400,
+                detail=f"File is not a readable image: {img_err}",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+
     return filepath
+
+
+def _sha256(path: str) -> str:
+    """Compute SHA-256 of a file for chain-of-custody audit records."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def _json_safe(value):
@@ -96,50 +207,50 @@ def _json_safe(value):
     return str(value)
 
 
-@app.on_event("startup")
-async def preload_models():
-    # 1. Warm up the FastMRZ singleton
-    get_mrz_reader()
-    # 2. Force DeepFace to download ArcFace + anti-spoof weights
-    # by running a dummy verify on a blank white image pair in a background thread
-    import threading
-    def _bg_preload():
-        try:
-            import numpy as np
-            from deepface import DeepFace
-            blank = np.ones((112, 112, 3), dtype=np.uint8) * 255
-            DeepFace.verify(
-                img1_path=blank,
-                img2_path=blank,
-                model_name="ArcFace",
-                detector_backend="retinaface",
-                anti_spoofing=True,
-                enforce_detection=False,
-                silent=True
-            )
-        except Exception:
-            pass  # weights download happens, dummy verify may fail — that's fine
-            
-    threading.Thread(target=_bg_preload, daemon=True).start()
+# (startup logic moved to lifespan() above)
 
 
 @app.get("/health")
 async def health_check():
-    """Basic liveness check."""
-    return {"status": "ok", "service": "document-screening-prototype", "models_loaded": ["FastMRZ", "ArcFace", "RetinaFace"]}
+    """Real component health check — does not hard-code model names."""
+    components: dict[str, str] = {}
+    try:
+        get_mrz_reader()
+        components["fastmrz"] = "ok"
+    except Exception as e:
+        components["fastmrz"] = f"unavailable: {e}"
+
+    try:
+        from deepface import DeepFace as _DF
+        for _model in ("ArcFace", "VGG-Face"):
+            try:
+                _DF.build_model(_model)
+                components[_model] = "ok"
+                break  # stop at first available model
+            except Exception as _e:
+                components[_model] = f"unavailable: {_e}"
+    except Exception as _e:
+        components["deepface"] = f"import error: {_e}"
+
+    degraded = any(v != "ok" for v in components.values())
+    return JSONResponse(
+        status_code=503 if components.get("fastmrz") != "ok" else 200,
+        content={"status": "degraded" if degraded else "ok", "components": components},
+    )
 
 
 @app.get("/audit-log")
-async def audit_log(limit: int = 20):
-    """Returns last N screening records from the DB as JSON."""
-    return get_recent_screenings(limit=limit)
+async def audit_log(limit: int = 20, _auth=Security(_require_auth)):
+    """Returns last N screening records. Requires valid API key."""
+    return get_recent_screenings(limit=min(limit, 100))
 
 
 @app.post("/screen-document")
-async def screen_document(
+def screen_document(
     document: UploadFile = File(..., description="Document image (passport, visa, ID card)"),
     selfie: UploadFile = File(None, description="Optional live selfie for face matching"),
     document_type: str = Form(None, description="Optional document type: PASSPORT, VISA, MRZ_ID, NON_MRZ_ID, UNKNOWN"),
+    _auth=Security(_require_auth),
 ):
     """
     Upload a document image (and optional selfie) for full screening.
@@ -165,14 +276,18 @@ async def screen_document(
     try:
         session_id = uuid.uuid4().hex
         results["session_id"] = session_id
-        
-        # Save uploaded files
+
+        # Save uploaded files (validation inside _save_upload)
         doc_path = _save_upload(document)
         logger.info(f"Document saved: {doc_path}")
+
+        # Compute SHA-256 for chain-of-custody before any processing
+        results["document_sha256"] = _sha256(doc_path)
 
         if selfie and selfie.filename:
             selfie_path = _save_upload(selfie)
             logger.info(f"Selfie saved: {selfie_path}")
+            results["selfie_sha256"] = _sha256(selfie_path)
 
         # ── Module 1+2: MRZ Extraction ────────────────────────────────────
         try:
@@ -277,9 +392,21 @@ if os.path.exists(FRONTEND_DIR):
 
 if __name__ == "__main__":
     import uvicorn
-    # Ensure Tesseract is in PATH
+    import argparse
+
+    # Ensure Tesseract is in PATH on Windows
     tesseract_dir = r"C:\Program Files\Tesseract-OCR"
-    if tesseract_dir not in os.environ.get("PATH", ""):
+    if os.name == "nt" and tesseract_dir not in os.environ.get("PATH", ""):
         os.environ["PATH"] = tesseract_dir + ";" + os.environ.get("PATH", "")
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    parser = argparse.ArgumentParser(description="NirakShan Document Screening API")
+    parser.add_argument("--expose", action="store_true",
+                        help="Bind to 0.0.0.0 (external). Default: 127.0.0.1 only.")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
+
+    host = "0.0.0.0" if args.expose else "127.0.0.1"
+    if args.expose:
+        logger.warning("Server bound to 0.0.0.0 — ensure API key auth is configured.")
+
+    uvicorn.run(app, host=host, port=args.port)

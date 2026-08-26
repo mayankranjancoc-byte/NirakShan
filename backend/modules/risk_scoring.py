@@ -8,7 +8,7 @@ using a weighted rule engine (not a trained model).
 Weight rationale:
   - Failed MRZ checksum: strong signal of invalid/forged document (25 pts)
   - Expired document: definite flag, but not necessarily fraud (15 pts)
-  - Tamper score: scaled from DocAuth's 0-100 range (30 pts max)
+  - Tamper score: scaled from 0-100 range (30 pts max)
   - Face mismatch: strong signal of identity fraud (20 pts)
   - Face liveness fail: indicates photo spoofing (10 pts)
 
@@ -18,7 +18,22 @@ Total possible: 100 points
   60+   -> HIGH risk (likely fraudulent)
 """
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
+
+
+def _parse_iso(value: str | None) -> date | None:
+    """
+    Multi-format date parser (H2 fix).
+    Tries common formats; returns None if none match or value is empty.
+    """
+    if not value:
+        return None
+    for fmt in ("%Y-%m-%d", "%y%m%d", "%Y%m%d", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(str(value), fmt).date()
+        except (ValueError, TypeError):
+            continue
+    return None
 
 
 def compute_risk_score(
@@ -64,6 +79,15 @@ def compute_risk_score(
         ocr_score += 25.0
         flags.append("MRZ_EXTRACTION_FAILED: Expected MRZ could not be read from document")
         score_breakdown_list.append({"component": "MRZ Checksum", "points_added": 25.0, "max_points": 25.0, "reason": "Expected MRZ could not be read from document"})
+    elif effective_mrz_status == "UNREADABLE":
+        # M3 fix: UNREADABLE is a capture problem, not a forgery indicator.
+        # Give a lower penalty and use a distinct, non-accusatory flag.
+        ocr_score += 8.0
+        flags.append("MRZ_UNREADABLE: Image quality too low to validate check digits — recapture required")
+        score_breakdown_list.append({
+            "component": "MRZ Checksum", "points_added": 8.0, "max_points": 25.0,
+            "reason": "Image too blurry to read MRZ; not a forgery indicator",
+        })
     elif effective_mrz_status == "INVALID" or checksum_valid is False:
         ocr_score += 25.0
         flags.append("MRZ_CHECKSUM_INVALID: Document MRZ check digits failed validation")
@@ -71,19 +95,38 @@ def compute_risk_score(
     elif effective_mrz_status in ["VALID", "SUCCESS"]:
         score_breakdown_list.append({"component": "MRZ Checksum", "points_added": 0.0, "max_points": 25.0, "reason": "All checksums valid"})
 
-    # Check document expiry
+    # Check document expiry with multi-format parsing (H2 fix)
     expiry_str = ocr_result.get("expiry_date", "")
     if expiry_str:
-        try:
-            expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
-            if expiry_date < date.today():
-                ocr_score += 15.0
-                flags.append(f"DOCUMENT_EXPIRED: Expired on {expiry_str}")
-                score_breakdown_list.append({"component": "Document Expiry", "points_added": 15.0, "max_points": 15.0, "reason": f"Expired on {expiry_str}"})
-            else:
-                score_breakdown_list.append({"component": "Document Expiry", "points_added": 0.0, "max_points": 15.0, "reason": "Document is not expired"})
-        except (ValueError, TypeError):
-            pass
+        expiry_date = _parse_iso(expiry_str)
+        if expiry_date is None:
+            # H2 fix: unparseable expiry is a weak flag, not a silent skip
+            ocr_score += 5.0
+            flags.append(f"EXPIRY_UNPARSEABLE: Expiry '{expiry_str}' could not be interpreted")
+            score_breakdown_list.append({
+                "component": "Document Expiry", "points_added": 5.0, "max_points": 15.0,
+                "reason": "Expiry date present but format not recognized",
+            })
+        elif expiry_date < date.today():
+            ocr_score += 15.0
+            flags.append(f"DOCUMENT_EXPIRED: Expired on {expiry_str}")
+            score_breakdown_list.append({"component": "Document Expiry", "points_added": 15.0, "max_points": 15.0, "reason": f"Expired on {expiry_str}"})
+        else:
+            score_breakdown_list.append({"component": "Document Expiry", "points_added": 0.0, "max_points": 15.0, "reason": "Document is not expired"})
+
+    # Date-logic consistency checks (H2 fix)
+    dob_str = ocr_result.get("date_of_birth", "")
+    dob = _parse_iso(dob_str)
+    expiry_date_for_logic = _parse_iso(expiry_str) if expiry_str else None
+
+    if dob and dob > date.today():
+        # M5 note: fix the century pivot in ocr_extraction.py BEFORE enabling this
+        # in production, or travellers born before 1969 will trigger this flag.
+        ocr_score += 10.0
+        flags.append(f"DOB_IN_FUTURE: Date of birth '{dob_str}' is in the future — impossible")
+    if dob and expiry_date_for_logic and dob >= expiry_date_for_logic:
+        ocr_score += 10.0
+        flags.append(f"DATE_LOGIC_INVALID: DOB '{dob_str}' is not before expiry '{expiry_str}'")
 
     ocr_score = min(ocr_score, 40.0)  # Cap at 40
     breakdown["mrz_validation"] = {
@@ -98,25 +141,38 @@ def compute_risk_score(
 
     # ── Module 3: Tampering Detection ─────────────────────────────────────────
 
-    tamper_raw = tamper_result.get("tamper_score", 0)
-    # Scale DocAuth's 0-100 score to our 0-30 range
-    tamper_score = (tamper_raw / 100.0) * 30.0
-    tamper_score = round(tamper_score, 2)
+    tamper_raw = tamper_result.get("tamper_score")
+    tamper_verdict_str = tamper_result.get("verdict", "Unknown")
 
-    if tamper_raw >= 55:
-        flags.append(f"TAMPERING_DETECTED: Document shows signs of forgery (score: {tamper_raw}%)")
-        score_breakdown_list.append({"component": "Tamper Detection", "points_added": tamper_score, "max_points": 30.0, "reason": f"Document shows signs of forgery (score: {tamper_raw}%)"})
-    elif tamper_raw >= 10:
-        flags.append(f"TAMPERING_SUSPICIOUS: Document has suspicious artifacts (score: {tamper_raw}%)")
-        score_breakdown_list.append({"component": "Tamper Detection", "points_added": tamper_score, "max_points": 30.0, "reason": f"Document has suspicious artifacts (score: {tamper_raw}%)"})
+    if tamper_raw is None or tamper_verdict_str == "INCONCLUSIVE":
+        # Detectors had insufficient coverage to produce a score.
+        # Report as informational; do not contribute points either way.
+        flags.append("TAMPERING_INCONCLUSIVE: Forensic detectors had insufficient coverage to produce a reliable score")
+        tamper_score = 0.0
+        score_breakdown_list.append({
+            "component": "Tamper Detection", "points_added": 0.0, "max_points": 30.0,
+            "reason": "INCONCLUSIVE — detectors could not produce a reliable result",
+        })
     else:
-        score_breakdown_list.append({"component": "Tamper Detection", "points_added": tamper_score, "max_points": 30.0, "reason": "No significant tampering detected"})
+        # Scale 0-100 tamper score to 0-30 range
+        tamper_score = round((tamper_raw / 100.0) * 30.0, 2)
+
+        if tamper_raw >= 55:
+            flags.append(f"TAMPERING_DETECTED: Document shows signs of forgery (score: {tamper_raw}%)")
+            score_breakdown_list.append({"component": "Tamper Detection", "points_added": tamper_score, "max_points": 30.0, "reason": f"Document shows signs of forgery (score: {tamper_raw}%)"})
+        elif tamper_raw >= 10:
+            flags.append(f"TAMPERING_SUSPICIOUS: Document has suspicious artifacts (score: {tamper_raw}%)")
+            score_breakdown_list.append({"component": "Tamper Detection", "points_added": tamper_score, "max_points": 30.0, "reason": f"Document has suspicious artifacts (score: {tamper_raw}%)"})
+        else:
+            score_breakdown_list.append({"component": "Tamper Detection", "points_added": tamper_score, "max_points": 30.0, "reason": "No significant tampering detected"})
 
     breakdown["tampering"] = {
         "score": tamper_score,
         "max_possible": 30,
         "raw_tamper_score": tamper_raw,
-        "tamper_verdict": tamper_result.get("verdict", "Unknown"),
+        "tamper_verdict": tamper_verdict_str,
+        "degraded": tamper_result.get("degraded", False),
+        "detector_coverage": tamper_result.get("detector_coverage"),
     }
     score += tamper_score
 
@@ -147,6 +203,14 @@ def compute_risk_score(
         score_breakdown_list.append({"component": "Face Liveness", "points_added": 10.0, "max_points": 10.0, "reason": "Live photo appears to be a spoof"})
     elif is_real is True:
         score_breakdown_list.append({"component": "Face Liveness", "points_added": 0.0, "max_points": 10.0, "reason": "Live photo appears to be a real face"})
+    elif is_real is None:
+        # H10 fix: liveness unavailable must be visible, not silently scored 0
+        face_score += 3.0
+        flags.append("LIVENESS_NOT_ASSESSED: Anti-spoofing unavailable — presentation attack not ruled out")
+        score_breakdown_list.append({
+            "component": "Face Liveness", "points_added": 3.0, "max_points": 10.0,
+            "reason": "Anti-spoofing unavailable; result inconclusive",
+        })
 
     face_score = min(face_score, 30.0)  # Cap at 30
     breakdown["face_verification"] = {

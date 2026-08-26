@@ -1,17 +1,21 @@
 """Module 4: strict document-portrait and selfie face verification."""
 
 import os
+import shutil
 import tempfile
+import logging
 
 import cv2
 import numpy as np
 from deepface import DeepFace
 
+logger = logging.getLogger(__name__)
 
 # A face smaller than this in the original image is too low-detail for a
-# reliable biometric comparison. It is better to ask for a clearer image than
-# to silently compare an entire passport page as though it were a face.
-MIN_FACE_SIDE_PX = 40
+# reliable biometric comparison. Faces between MIN and WARN are accepted
+# but emit a LOW_QUALITY_PORTRAIT flag.
+MIN_FACE_SIDE_PX = 80
+WARN_FACE_SIDE_PX = 112
 # OpenCV is already bundled with DeepFace and avoids an unexpected first-run
 # RetinaFace download. RetinaFace remains a strict fallback for harder images.
 DETECTION_BACKENDS = ("opencv", "retinaface")
@@ -22,8 +26,13 @@ def _face_area(face: dict) -> int:
     return int(area.get("w", 0)) * int(area.get("h", 0))
 
 
-def _extract_face_crop(image_path: str, label: str) -> tuple[str, dict]:
-    """Strictly detect the largest usable face and write an aligned temp crop."""
+def _extract_face_crop(
+    image_path: str, label: str
+) -> tuple[str, dict, bool]:
+    """Strictly detect the largest usable face and write an aligned temp crop.
+
+    Returns (crop_path, detection_info, low_quality_warning).
+    """
     failures = []
     for backend in DETECTION_BACKENDS:
         try:
@@ -59,14 +68,15 @@ def _extract_face_crop(image_path: str, label: str) -> tuple[str, dict]:
                 raise RuntimeError("could not save detected face crop")
 
             area = face.get("facial_area", {})
+            face_w = int(area.get("w", 0))
+            face_h = int(area.get("h", 0))
+            low_quality = min(face_w, face_h) < WARN_FACE_SIDE_PX
+
             return handle.name, {
                 "backend": backend,
                 "faces_detected": len(faces),
-                "original_face_size": {
-                    "width": int(area.get("w", 0)),
-                    "height": int(area.get("h", 0)),
-                },
-            }
+                "original_face_size": {"width": face_w, "height": face_h},
+            }, low_quality
         except Exception as error:
             failures.append(f"{backend}: {error}")
 
@@ -79,11 +89,11 @@ def _extract_face_crop(image_path: str, label: str) -> tuple[str, dict]:
 
 def extract_face_from_document(image_path: str, output_path: str = None) -> str:
     """Extract a real detected portrait from a document; never use the whole page."""
-    crop_path, _ = _extract_face_crop(image_path, "document")
+    crop_path, _, _ = _extract_face_crop(image_path, "document")
     if output_path is None:
         return crop_path
     try:
-        os.replace(crop_path, output_path)
+        shutil.move(crop_path, output_path)  # M11: shutil.move handles cross-device
         return output_path
     except Exception:
         if os.path.exists(crop_path):
@@ -91,13 +101,18 @@ def extract_face_from_document(image_path: str, output_path: str = None) -> str:
         raise
 
 
-def _liveness_check(selfie_path: str, detector_backend: str) -> tuple[bool | None, str | None]:
-    """Return an optional liveness result without allowing it to break matching."""
+def _liveness_check(
+    selfie_crop_path: str, detector_backend: str
+) -> tuple[bool | None, str | None]:
+    """Run anti-spoofing on the ALREADY CROPPED selfie face (H10 fix: same
+    face selection as biometric match, not a second independent detection)."""
     try:
+        # Pass the crop directly with skip so we assess the exact same face
+        # used for matching — avoids a bystander being checked instead.
         faces = DeepFace.extract_faces(
-            img_path=selfie_path,
-            detector_backend=detector_backend,
-            enforce_detection=True,
+            img_path=selfie_crop_path,
+            detector_backend="skip",
+            enforce_detection=False,
             anti_spoofing=True,
         )
         if not faces:
@@ -131,6 +146,17 @@ def _verify_crops(document_crop: str, selfie_crop: str, preferred_model: str) ->
     raise RuntimeError("Face comparison failed. " + "; ".join(failures))
 
 
+def _resolve_face_model() -> str:
+    """Try to build each candidate model; return the first available one."""
+    for candidate in ("ArcFace", "VGG-Face"):
+        try:
+            DeepFace.build_model(candidate)
+            return candidate
+        except Exception as error:
+            logger.warning("Face model %s unavailable: %s", candidate, error)
+    raise RuntimeError("No face recognition model available; install deepface weights.")
+
+
 def verify_face_match(
     document_path: str,
     live_photo_path: str,
@@ -147,17 +173,30 @@ def verify_face_match(
         "similarity_score": None,
     }
 
-    arcface_weights = os.path.expanduser("~/.deepface/weights/arcface_weights.h5")
-    has_arcface = os.path.exists(arcface_weights) and os.path.getsize(arcface_weights) > 100_000_000
-    model_name = "ArcFace" if has_arcface else "VGG-Face"
+    # H9 fix: resolve the actual model instead of guessing via file path.
+    try:
+        model_name = _resolve_face_model()
+    except RuntimeError as e:
+        return {
+            "verified": False, "distance": None, "confidence": 0.0,
+            "is_real": None, "error": str(e), "flags": flags,
+            "identity_cross_check": identity_cross_check,
+        }
 
     try:
-        document_crop, document_detection = _extract_face_crop(document_path, "document")
+        document_crop, document_detection, doc_low_q = _extract_face_crop(document_path, "document")
         temporary_files.append(document_crop)
-        selfie_crop, selfie_detection = _extract_face_crop(live_photo_path, "selfie")
+        selfie_crop, selfie_detection, selfie_low_q = _extract_face_crop(live_photo_path, "selfie")
         temporary_files.append(selfie_crop)
 
-        liveness, liveness_warning = _liveness_check(live_photo_path, selfie_detection["backend"])
+        if doc_low_q:
+            flags.append("LOW_QUALITY_PORTRAIT_DOCUMENT: Document portrait is small; result may be less reliable")
+        if selfie_low_q:
+            flags.append("LOW_QUALITY_PORTRAIT_SELFIE: Selfie is small; result may be less reliable")
+
+        # H10 fix: run liveness on the already-extracted selfie crop,
+        # not on the original image with a fresh independent detection.
+        liveness, liveness_warning = _liveness_check(selfie_crop, selfie_detection["backend"])
         if liveness_warning:
             flags.append("ANTI_SPOOF_UNAVAILABLE")
 
@@ -168,33 +207,44 @@ def verify_face_match(
                 detector_backend="skip",
                 enforce_detection=False,
             )[0]["embedding"]
-            if session_id and passport_number:
+
+            # C6/C7/C8 fix: always store + always search, keyed by session_id.
+            # passport_number may be None when MRZ failed — that’s fine.
+            if session_id:
                 from modules.audit_logger import find_similar_identity, store_embedding
 
-                similar = find_similar_identity(embedding, exclude_passport=passport_number)
-                if similar:
-                    identity_cross_check = {
-                        "duplicate_detected": True,
-                        "matched_session_id": similar["matched_session"],
-                        "matched_passport_number": similar["matched_passport"],
-                        "similarity_score": similar["similarity"],
-                    }
-                    flags.append("MULTIPLE_IDENTITY_SUSPECTED")
-                store_embedding(session_id, passport_number, embedding)
+                try:
+                    similar = find_similar_identity(
+                        embedding,
+                        exclude_session=session_id,
+                        model_name=model_name,
+                    )
+                    if similar:
+                        identity_cross_check = {
+                            "duplicate_detected": True,
+                            "matched_session_id": similar["matched_session"],
+                            "matched_passport_number": similar["matched_passport"],
+                            "similarity_score": similar["similarity"],
+                        }
+                        flags.append("MULTIPLE_IDENTITY_SUSPECTED")
+                    store_embedding(session_id, passport_number, model_name, embedding)
+                except Exception as dedup_error:
+                    logger.exception("Identity dedup failed")
+                    flags.append(f"DEDUP_UNAVAILABLE: {dedup_error}")
         except Exception as error:
             flags.append(f"EMBEDDING_ERROR: {error}")
 
         result = _verify_crops(document_crop, selfie_crop, model_name)
         distance = float(result.get("distance", 0))
         threshold = float(result.get("threshold", 0.68))
-        confidence = result.get("confidence", 0)
-        if not confidence and threshold > 0:
-            confidence = max(0, (1 - distance / threshold)) * 100
+        # M10 fix: label confidence as uncalibrated to avoid misleading officers.
+        raw_distance_ratio = max(0.0, 1.0 - distance / threshold) if threshold > 0 else 0.0
 
         response = {
             "verified": bool(result.get("verified", False)),
             "distance": round(distance, 4),
-            "confidence": round(float(confidence), 2),
+            "confidence_uncalibrated": round(raw_distance_ratio * 100, 2),
+            "confidence": round(raw_distance_ratio * 100, 2),  # kept for UI compatibility
             "threshold": threshold,
             "model": result.get("model", model_name),
             "detector": "strict-crop",
