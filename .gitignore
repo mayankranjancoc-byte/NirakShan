@@ -7,9 +7,11 @@ __pycache__/
 dist/
 build/
 
-# Uploads (user data)
+# Uploads & Data
 backend/uploads/*
 !backend/uploads/.gitkeep
+*.db
+backend/audit_log.db
 
 # Vendor repos (cloned separately)
 # backend/vendor/fastmrz/

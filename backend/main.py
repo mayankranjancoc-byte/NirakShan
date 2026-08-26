@@ -12,6 +12,8 @@ import uuid
 import shutil
 import logging
 
+import numpy as np
+
 # Set environment variables before importing tensorflow
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["PYTHONIOENCODING"] = "utf-8"
@@ -70,6 +72,28 @@ def _save_upload(upload: UploadFile) -> str:
     with open(filepath, "wb") as f:
         shutil.copyfileobj(upload.file, f)
     return filepath
+
+
+def _json_safe(value):
+    """Convert NumPy values, bytes, and custom objects into JSON-compatible values."""
+    if value is None or isinstance(value, (int, float, str, bool)):
+        return value
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, bytes):
+        try:
+            return value.decode("utf-8", errors="ignore")
+        except Exception:
+            return str(value)
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(item) for item in value]
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
 
 
 @app.on_event("startup")
@@ -230,7 +254,7 @@ async def screen_document(
         if not results["errors"]:
             results["errors"] = None
 
-        return JSONResponse(content=results)
+        return JSONResponse(content=_json_safe(results))
 
     except Exception as e:
         logger.error(f"Unexpected error: {e}")

@@ -110,13 +110,22 @@ def analyze_exif(image_path: str) -> dict:
             
         res["has_exif"] = True
         
-        # Decode EXIF
+        # Decode EXIF safely
         exif_data = {}
-        for tag_id, value in exif.items():
+        for tag_id, raw_val in exif.items():
             tag = TAGS.get(tag_id, tag_id)
-            exif_data[tag] = value
+            if isinstance(raw_val, bytes):
+                try:
+                    val_str = raw_val.decode("utf-8", errors="ignore").strip()
+                except Exception:
+                    val_str = str(raw_val)
+            elif isinstance(raw_val, (int, float, str, bool)):
+                val_str = raw_val
+            else:
+                val_str = str(raw_val)
+            exif_data[str(tag)] = val_str
             
-        res["camera_make"] = exif_data.get("Make")
+        res["camera_make"] = str(exif_data.get("Make")) if exif_data.get("Make") else None
         software = exif_data.get("Software")
         if software:
             res["software_used"] = str(software)
