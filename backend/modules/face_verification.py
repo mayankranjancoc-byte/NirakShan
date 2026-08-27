@@ -125,8 +125,12 @@ def _liveness_check(
 def _verify_crops(document_crop: str, selfie_crop: str, preferred_model: str) -> dict:
     """Compare already-detected face crops; skip a second, unreliable detection pass."""
     models = [preferred_model]
-    if preferred_model != "Facenet":
-        models.append("Facenet")
+    
+    # Use lightweight FaceNet on Render, heavy VGG-Face locally
+    fallback = "Facenet" if os.environ.get("RENDER") else "VGG-Face"
+    
+    if preferred_model != fallback:
+        models.append(fallback)
 
     failures = []
     for model_name in models:
@@ -148,7 +152,10 @@ def _verify_crops(document_crop: str, selfie_crop: str, preferred_model: str) ->
 
 def _resolve_face_model() -> str:
     """Try to build each candidate model; return the first available one."""
-    for candidate in ("Facenet", "ArcFace"):
+    # Use lightweight FaceNet on Render, heavy models locally
+    candidates = ("Facenet", "ArcFace") if os.environ.get("RENDER") else ("ArcFace", "VGG-Face")
+    
+    for candidate in candidates:
         try:
             FaceBiometrics.build_model(candidate)
             return candidate
