@@ -45,8 +45,12 @@ Image.MAX_IMAGE_PIXELS = 80_000_000
 # Set NIRAKSHAN_API_KEY env var to enable. If unset, auth is bypassed (dev mode).
 API_KEY = os.environ.get("NIRAKSHAN_API_KEY", "")
 
-# Add vendor directory to path for image_forensics imports
+# Ensure backend directory is in sys.path
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
+
+# Add vendor directory to path for image_forensics imports
 VENDOR_DIR = os.path.join(BACKEND_DIR, "vendor", "image_forensics")
 if VENDOR_DIR not in sys.path:
     sys.path.insert(0, VENDOR_DIR)

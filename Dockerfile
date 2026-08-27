@@ -24,7 +24,13 @@ COPY frontend/ /app/frontend/
 # Install the local mrz_scanner module
 RUN pip install --no-deps -e /app/backend/vendor/mrz_scanner
 
+# Set environment paths
+ENV PYTHONPATH="/app/backend:/app:$PYTHONPATH"
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app/backend
+
 EXPOSE 8000
 
-# Run FastAPI app
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run FastAPI app from backend directory
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
