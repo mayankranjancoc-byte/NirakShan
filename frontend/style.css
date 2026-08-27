@@ -530,3 +530,61 @@ body {
 .hidden {
     display: none !important;
 }
+
+/* ── Liveness Video Zone ─────────────────────────────────────────── */
+#video-dropzone {
+    position: relative;
+}
+#video-dropzone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 1;
+}
+.btn-record {
+    position: relative;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s;
+}
+.btn-record:hover:not(:disabled) {
+    opacity: 0.88;
+    transform: translateY(-1px);
+}
+.btn-record:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    animation: pulse-record 0.8s ease-in-out infinite alternate;
+}
+@keyframes pulse-record {
+    from { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+    to   { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
+.countdown-label {
+    margin-left: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--warning);
+    min-width: 140px;
+    display: inline-block;
+}
+.video-filename {
+    display: block;
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    color: var(--accent);
+    word-break: break-all;
+}
+

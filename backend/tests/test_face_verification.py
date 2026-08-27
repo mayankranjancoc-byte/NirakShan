@@ -47,8 +47,9 @@ class TestFindSimilarIdentitySessionExclusion(unittest.TestCase):
         from modules.audit_logger import find_similar_identity, store_embedding
         import uuid
 
+        import random
         session_a = uuid.uuid4().hex
-        emb_a = [0.9] * 512  # fake ArcFace-length embedding
+        emb_a = [random.uniform(-1, 1) for _ in range(512)]  # unique per test, zero-centered
 
         # Store under session_a
         try:
@@ -64,10 +65,11 @@ class TestFindSimilarIdentitySessionExclusion(unittest.TestCase):
         from modules.audit_logger import find_similar_identity, store_embedding
         import uuid
 
+        import random
         session_a = uuid.uuid4().hex
         session_b = uuid.uuid4().hex
-        # High-similarity embedding (simulates same person, two screenings)
-        emb = [0.9] * 512
+        # High-similarity embedding, randomized so we don't hit old test runs
+        emb = [random.uniform(-1, 1) for _ in range(512)]
 
         try:
             store_embedding(session_a, "P12345678", "ArcFace", emb)
@@ -84,15 +86,16 @@ class TestFindSimilarIdentitySessionExclusion(unittest.TestCase):
         from modules.audit_logger import find_similar_identity, store_embedding
         import uuid
 
+        import random
         session_vgg = uuid.uuid4().hex
-        emb_vgglike = [0.9] * 4096  # VGG-Face dimensions
+        emb_vgglike = [random.uniform(-1, 1) for _ in range(4096)]
 
         try:
             store_embedding(session_vgg, None, "VGG-Face", emb_vgglike)
         except Exception as e:
             self.skipTest(f"Could not store embedding: {e}")
 
-        arcface_emb = [0.9] * 512
+        arcface_emb = [random.uniform(-1, 1) for _ in range(512)]
         session_arc = uuid.uuid4().hex
 
         # Searching with ArcFace model should NOT find VGG-Face gallery entries

@@ -19,6 +19,14 @@ const selfiePreviewWrap = document.getElementById('selfie-preview-wrap');
 const selfiePreview = document.getElementById('selfie-preview');
 const selfieRemoveBtn = document.getElementById('selfie-remove-btn');
 
+const videoInput = document.getElementById('video-input');
+const videoDropzone = document.getElementById('video-dropzone');
+const videoDropContent = document.getElementById('video-drop-content');
+const videoFilename = document.getElementById('video-filename');
+const videoRemoveBtn = document.getElementById('video-remove-btn');
+const recordBtn = document.getElementById('record-btn');
+const countdownEl = document.getElementById('liveness-countdown');
+
 const screeningForm = document.getElementById('screening-form');
 const submitBtn = document.getElementById('submit-btn');
 const btnText = submitBtn.querySelector('.btn-text');
@@ -27,6 +35,9 @@ const loadingSpinner = document.getElementById('loading-spinner');
 const resultsPlaceholder = document.getElementById('results-placeholder');
 const resultsContent = document.getElementById('results-content');
 const backendStatus = document.getElementById('backend-status');
+
+let recordedVideoBlob = null;
+let mediaRecorder = null;
 
 // Setup Dropzones
 function setupDropzone(input, dropzone, previewWrap, previewImg, removeBtn) {
@@ -83,6 +94,69 @@ function setupDropzone(input, dropzone, previewWrap, previewImg, removeBtn) {
 setupDropzone(docInput, docDropzone, docPreviewWrap, docPreview, docRemoveBtn);
 setupDropzone(selfieInput, selfieDropzone, selfiePreviewWrap, selfiePreview, selfieRemoveBtn);
 
+// ── Liveness Video: File Upload & MediaRecorder Capture ─────────────────────
+if (videoInput) {
+    videoInput.addEventListener('change', () => {
+        if (videoInput.files && videoInput.files[0]) {
+            recordedVideoBlob = null;
+            videoFilename.textContent = '📹 ' + videoInput.files[0].name;
+            videoDropContent.classList.add('hidden');
+            videoFilename.classList.remove('hidden');
+            videoRemoveBtn.classList.remove('hidden');
+        }
+    });
+}
+if (videoRemoveBtn) {
+    videoRemoveBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        recordedVideoBlob = null;
+        if (videoInput) videoInput.value = '';
+        videoFilename.classList.add('hidden');
+        videoRemoveBtn.classList.add('hidden');
+        videoDropContent.classList.remove('hidden');
+    });
+}
+
+if (recordBtn) {
+    recordBtn.addEventListener('click', async () => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') return;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            const chunks = [];
+            const mimeType = MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4';
+            mediaRecorder = new MediaRecorder(stream, { mimeType });
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+            mediaRecorder.onstop = () => {
+                recordedVideoBlob = new Blob(chunks, { type: mimeType });
+                stream.getTracks().forEach(t => t.stop());
+                videoFilename.textContent = `📹 Recorded liveness clip (${(recordedVideoBlob.size / 1024).toFixed(0)} KB)`;
+                videoDropContent.classList.add('hidden');
+                videoFilename.classList.remove('hidden');
+                videoRemoveBtn.classList.remove('hidden');
+                countdownEl.textContent = '✓ Done';
+                setTimeout(() => { countdownEl.textContent = ''; }, 2000);
+            };
+            mediaRecorder.start();
+            recordBtn.disabled = true;
+            let secs = 3;
+            countdownEl.textContent = `🔴 Recording... ${secs}s`;
+            const iv = setInterval(() => {
+                secs--;
+                if (secs <= 0) {
+                    clearInterval(iv);
+                    mediaRecorder.stop();
+                    recordBtn.disabled = false;
+                } else {
+                    countdownEl.textContent = `🔴 Recording... ${secs}s`;
+                }
+            }, 1000);
+        } catch (err) {
+            countdownEl.textContent = `Camera error: ${err.message}`;
+            console.error(err);
+        }
+    });
+}
+
 // Health check on load
 async function checkHealth() {
     try {
@@ -114,6 +188,13 @@ screeningForm.addEventListener('submit', async (e) => {
     formData.append('document', docInput.files[0]);
     if (selfieInput.files && selfieInput.files.length > 0) {
         formData.append('selfie', selfieInput.files[0]);
+    }
+    // Liveness video: prefer recorded blob, then file upload
+    if (recordedVideoBlob) {
+        const ext = recordedVideoBlob.type.includes('webm') ? 'webm' : 'mp4';
+        formData.append('video', recordedVideoBlob, `liveness.${ext}`);
+    } else if (videoInput && videoInput.files && videoInput.files.length > 0) {
+        formData.append('video', videoInput.files[0]);
     }
 
     // Set Loading State
@@ -153,6 +234,7 @@ function renderResults(data) {
     const ocr = data.ocr || {};
     const tampering = data.tampering || {};
     const face = data.face || {};
+    const liveness = data.liveness || {};
 
     // 1. Overall Verdict & Score Dial
     const scoreVal = document.getElementById('risk-score-val');
@@ -333,6 +415,59 @@ function renderResults(data) {
         faceDetails.innerHTML = `<p class="muted-text">${face.note || 'No selfie uploaded for face matching.'}</p>`;
     }
 
-    // 5. Raw JSON
+    // 5. Module 3.5: Document Liveness
+    const livenessBadge = document.getElementById('liveness-badge');
+    const livenessDetails = document.getElementById('liveness-details');
+
+    if (livenessBadge && livenessDetails) {
+        const sr = liveness.screen_replay || {};
+        const pm = liveness.physical_motion || {};
+
+        // Part A badge
+        const replayOk = sr.is_screen_replay === false;
+        const replayFail = sr.is_screen_replay === true;
+        const motionVerdict = pm.verdict || 'SKIPPED';
+
+        let lBadgeText, lBadgeClass;
+        if (replayFail) {
+            lBadgeText = 'REPLAY DETECTED';
+            lBadgeClass = 'module-tag badge-danger';
+        } else if (motionVerdict === 'STATIC') {
+            lBadgeText = 'STATIC IMAGE';
+            lBadgeClass = 'module-tag badge-danger';
+        } else if (motionVerdict === 'PHYSICAL' && replayOk) {
+            lBadgeText = 'PASS';
+            lBadgeClass = 'module-tag badge-success';
+        } else if (motionVerdict === 'SKIPPED') {
+            lBadgeText = replayOk ? 'PARTIAL PASS' : (sr.is_screen_replay === null ? 'SKIPPED' : 'CHECK');
+            lBadgeClass = replayOk ? 'module-tag badge-success' : 'module-tag';
+        } else {
+            lBadgeText = 'INCONCLUSIVE';
+            lBadgeClass = 'module-tag badge-warning';
+        }
+
+        livenessBadge.textContent = lBadgeText;
+        livenessBadge.className = lBadgeClass;
+
+        const methodLabel = sr.method === 'svm' ? 'Trained SVM' :
+                            sr.method === 'threshold' ? 'FFT+Texture Heuristic' : 'Unavailable';
+        const replayLabel = sr.is_screen_replay === true ? '⚠ Replay Detected' :
+                            sr.is_screen_replay === false ? '✓ No Replay' : 'N/A';
+
+        livenessDetails.innerHTML = `
+            <table class="data-table">
+                <tr><td><b>Part A: Screen Replay</b></td><td>${replayLabel} <span class="muted-text">(${methodLabel})</span></td></tr>
+                <tr><td>FFT Peak Ratio</td><td>${sr.fft_peak_ratio ?? 'N/A'}</td></tr>
+                <tr><td>Texture Uniformity</td><td>${sr.texture_uniformity ?? 'N/A'}</td></tr>
+                <tr><td><b>Part B: Physical Motion</b></td><td>${motionVerdict}</td></tr>
+                <tr><td>Highlight Displacement</td><td>${pm.mean_highlight_displacement_px != null ? pm.mean_highlight_displacement_px.toFixed(2) + ' px' : 'N/A'}</td></tr>
+                <tr><td>Hologram HSV Shift</td><td>${pm.hologram_hsv_shift ?? 'N/A'}</td></tr>
+                <tr><td>Frames Analysed</td><td>${pm.frame_count ?? 0}</td></tr>
+                ${pm.note ? `<tr><td>Note</td><td class="muted-text">${pm.note}</td></tr>` : ''}
+            </table>
+        `;
+    }
+
+    // 6. Raw JSON
     document.getElementById('raw-json-output').textContent = JSON.stringify(data, null, 2);
 }

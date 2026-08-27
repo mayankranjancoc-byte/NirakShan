@@ -41,10 +41,10 @@ class TestAuditAndIdentity(unittest.TestCase):
     def test_case_2_duplicate_identity_flag(self):
         # Store dummy embedding
         dummy_embedding = [0.1, 0.2, 0.3, 0.4, 0.5]
-        store_embedding("session_123", "X123456", dummy_embedding)
+        store_embedding("session_123", "X123456", "ArcFace", dummy_embedding)
         
-        # Search with identical embedding but different passport
-        match = find_similar_identity(dummy_embedding, "Y789012")
+        # Search with identical embedding but different passport (using a different session ID as exclude)
+        match = find_similar_identity(dummy_embedding, "session_456", "ArcFace", threshold=0.68)
         
         self.assertIsNotNone(match)
         self.assertEqual(match["matched_session"], "session_123")

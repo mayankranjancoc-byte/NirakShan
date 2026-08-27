@@ -68,6 +68,25 @@
                         </div>
                     </div>
 
+                    <!-- Liveness Video Upload Box -->
+                    <div class="form-group">
+                        <label class="field-label">Document Liveness Video <span class="optional">(Optional — tilt document 2–3s)</span></label>
+                        <div class="dropzone" id="video-dropzone" style="cursor:pointer;">
+                            <input type="file" id="video-input" accept="video/*">
+                            <div class="dropzone-content" id="video-drop-content">
+                                <div class="upload-icon">🎥</div>
+                                <p class="drop-text">Drop a short tilt video, or <span>browse</span></p>
+                                <span class="file-hint">MP4 / WebM / MOV — 2–3 seconds of tilting the document</span>
+                                <div style="margin-top:10px;">
+                                    <button type="button" id="record-btn" class="btn-record" onclick="event.stopPropagation()">⏺&nbsp;Record 3s Now</button>
+                                    <span id="liveness-countdown" class="countdown-label"></span>
+                                </div>
+                            </div>
+                            <span id="video-filename" class="video-filename hidden"></span>
+                            <button type="button" class="btn-remove hidden" id="video-remove-btn">&times;</button>
+                        </div>
+                    </div>
+
                     <button type="submit" id="submit-btn" class="btn-primary">
                         <span class="btn-text">Run Security Screening</span>
                         <span class="spinner hidden" id="loading-spinner"></span>
@@ -90,7 +109,7 @@
                     <div class="verdict-banner" id="verdict-banner">
                         <div class="score-dial">
                             <span class="score-value" id="risk-score-val">0</span>
-                            <span class="score-label">/ 100 Risk</span>
+                            <span class="score-label"> Risk Score</span>
                         </div>
                         <div class="verdict-details">
                             <div class="verdict-badge" id="verdict-badge">LOW RISK</div>
@@ -173,6 +192,18 @@
                             </div>
                             <div class="module-body" id="face-details">
                                 <p id="face-summary" class="muted-text">No live selfie uploaded</p>
+                            </div>
+                        </div>
+                    </div>
+
+                        <!-- Module 3.5: Document Liveness -->
+                        <div class="module-card">
+                            <div class="module-header">
+                                <h3>3.5. Document Liveness</h3>
+                                <span class="module-tag" id="liveness-badge">N/A</span>
+                            </div>
+                            <div class="module-body" id="liveness-details">
+                                <p class="muted-text">Upload or record a short tilt video to enable physical liveness verification. Screen-replay check (Part A) always runs on the document image.</p>
                             </div>
                         </div>
                     </div>

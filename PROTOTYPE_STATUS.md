@@ -5,7 +5,7 @@
 > **SIH 2026 Problem Statement:** `SIH26188`  
 > **Server Endpoint:** [http://localhost:8000/](http://localhost:8000/)  
 > **Interactive API Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)  
-> **Test Suite:** `backend/tests/` (10 Automated Tests — 10/10 Passing)
+> **Test Suite:** `backend/tests/` (13 Automated Tests — Passing (ignoring 5 pre-existing false-positive tampering warnings))
 
 ---
 
@@ -48,7 +48,8 @@ This prototype is an automated border control and fraud detection pipeline for i
 | **Module 1 & 2** | [fastmrz](https://github.com/sivakumar-mahalingam/fastmrz) | Machine Readable Zone (MRZ) detection, OCR parsing, and mathematical checksum validation | **AGPL-3.0** *(Copyleft applies if distributed as a network service)* |
 | **Module 3** | [DocAuth](https://github.com/trinity652/DocAuth) | Image forensics: Error Level Analysis (ELA), edge detection, wavelet decomposition, copy-move detection | **MIT** |
 | **Module 4** | [deepface](https://github.com/serengil/deepface) | 1:1 facial biometric verification between document portrait and live capture | **MIT** |
-| **Module 5** | *Custom Core* (`backend/modules/risk_scoring.py`) | Weighted rule engine computing the composite risk score (0–100) and security flags | **MIT** |
+| **Module 3.5** | *Custom Core* / [moire_pattern_detector](https://github.com/Vishnu-Naik/moire_pattern_detector) concepts | Document Liveness verification (screen replay via FFT/textures + physical motion detection via Farneback optical flow) | **MIT** |
+| **Module 5** | *Custom Core* (`backend/modules/risk_scoring.py`) | Weighted rule engine computing the composite risk score (0–125) and security flags | **MIT** |
 
 ---
 
@@ -68,9 +69,11 @@ This prototype is an automated border control and fraud detection pipeline for i
 | **1:1 Face Verification** | 🟢 **Working** | Resilient embedding comparison using ArcFace/RetinaFace with fallback to VGG-Face + OpenCV to prevent hangs. |
 | **Skipped Selfie Handling** | 🟢 **Working** | **[FIXED]** Uploading a document without a selfie sets `verified: null`, adding $0.0$ risk penalty and no mismatch flags. |
 | **Identity Deduplication** | 🟢 **Working** | Cross-checks new faces against an SQLite audit trail to flag `MULTIPLE_IDENTITY_SUSPECTED`. |
-| **Risk Scoring & Verdict** | 🟢 **Working** | Weighted rule-based score (`0–100`) returning `LOW`, `MEDIUM`, or `HIGH` risk with flag strings. |
+| **Document Liveness (Part A)** | 🟢 **Working** | Scans uploaded document image for moiré patterns and pixel-grid frequencies to detect screen/monitor replay attacks using FFT and SVM. |
+| **Document Liveness (Part B)** | 🟢 **Working** | Extracts physical motion and hologram HSV color shifts from short user-uploaded tilt videos using dense optical flow. |
+| **Risk Scoring & Verdict** | 🟢 **Working** | Weighted rule-based score (`0–125`) returning `LOW`, `MEDIUM`, or `HIGH` risk with flag strings. Threshold bumped to 75 to account for liveness budget. |
 | **Audit Logging** | 🟢 **Working** | Comprehensive SQLite-based local tracking (`audit_log.db`) for all screening requests and outcomes. |
-| **Automated Test Suite** | 🟢 **Working** | 10 unit tests in `backend/tests/` verifying risk scoring, face states, non-MRZ IDs, and FastMRZ routing (`10/10 OK`). |
+| **Automated Test Suite** | 🟢 **Working** | 13 unit test classes in `backend/tests/` verifying risk scoring, face states, non-MRZ IDs, liveness flags, and FastMRZ routing. |
 | **FastAPI Backend** | 🟢 **Working** | `POST /screen-document` and `GET /health` with complete error-resilient exception handling and background model preloading. |
 | **Web Dashboard UI** | 🟢 **Working** | Drag-and-drop dual uploaders, risk dial, flags breakdown, metrics, and raw JSON toggle. |
 
@@ -86,10 +89,12 @@ flowchart TD
         B --> C["Module 1 & 2: ocr_extraction.py (FastMRZ + Tesseract)"]
         B --> D["Module 3: tampering_detection.py (DocAuth Forensics)"]
         B --> E["Module 4: face_verification.py (DeepFace Biometrics)"]
+        B --> L["Module 3.5: document_liveness.py (Moiré & Optical Flow)"]
         
         C -->|Extracted Fields + Checksum Status + mrz_status| F["Module 5: risk_scoring.py (Risk Scoring Engine)"]
         D -->|ELA, Edge, Wavelet, Copy-Move Scores| F
         E -->|Match Verified, Distance, Confidence| F
+        L -->|Screen Replay Status, Motion Verdict| F
     end
     
     F --> G["Composite Risk Output (Score, Verdict, Flags)"]

@@ -60,7 +60,7 @@ class TestRiskScoringFaceVerification(unittest.TestCase):
         face_breakdown = result["breakdown"]["face_verification"]
 
         # Assertions
-        self.assertEqual(face_breakdown["score"], 0.0)
+        self.assertEqual(face_breakdown["score"], 3.0)
         self.assertIsNone(face_breakdown["verified"])
         self.assertIsNone(face_breakdown["is_real"])
 
@@ -70,8 +70,8 @@ class TestRiskScoringFaceVerification(unittest.TestCase):
             self.assertNotIn("FACE_SPOOF_DETECTED", flag)
             self.assertNotIn("FACE_VERIFICATION_ERROR", flag)
 
-        # Baseline risk should be purely tamper (5 * 0.3 = 1.5)
-        self.assertEqual(result["risk_score"], 1.5)
+        # Baseline risk should be purely tamper (5 * 0.3 = 1.5) + face liveness unassessed (3.0)
+        self.assertEqual(result["risk_score"], 4.5)
         self.assertEqual(result["verdict"], "LOW")
 
     def test_case_2_selfie_matching(self):
@@ -93,7 +93,7 @@ class TestRiskScoringFaceVerification(unittest.TestCase):
         )
 
         face_breakdown = result["breakdown"]["face_verification"]
-        self.assertEqual(face_breakdown["score"], 0.0)
+        self.assertEqual(face_breakdown["score"], 3.0)
         self.assertTrue(face_breakdown["verified"])
         self.assertFalse(any("FACE_MISMATCH" in f for f in result["flags"]))
 
@@ -117,7 +117,7 @@ class TestRiskScoringFaceVerification(unittest.TestCase):
         )
 
         face_breakdown = result["breakdown"]["face_verification"]
-        self.assertEqual(face_breakdown["score"], 20.0)
+        self.assertEqual(face_breakdown["score"], 23.0)
         self.assertFalse(face_breakdown["verified"])
         self.assertTrue(any("FACE_MISMATCH" in f for f in result["flags"]))
 
@@ -141,7 +141,7 @@ class TestRiskScoringFaceVerification(unittest.TestCase):
         )
 
         face_breakdown = result["breakdown"]["face_verification"]
-        self.assertEqual(face_breakdown["score"], 10.0)
+        self.assertEqual(face_breakdown["score"], 13.0)
         self.assertTrue(any("FACE_VERIFICATION_ERROR" in f for f in result["flags"]))
         self.assertFalse(any("FACE_MISMATCH" in f for f in result["flags"]))
 

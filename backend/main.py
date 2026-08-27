@@ -13,6 +13,7 @@ import uuid
 import shutil
 import hashlib
 import logging
+import tempfile
 import threading
 from contextlib import asynccontextmanager
 
@@ -24,12 +25,19 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["PYTHONIOENCODING"] = "utf-8"
 
 # ── Upload security constants ──────────────────────────────────────────────
-MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # 15 MB
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024   # 15 MB (images)
+MAX_VIDEO_BYTES  = 50 * 1024 * 1024   # 50 MB (liveness video)
 ALLOWED_CONTENT_TYPES = {
     "image/jpeg": ".jpg",
-    "image/jpg": ".jpg",
-    "image/png": ".png",
+    "image/jpg":  ".jpg",
+    "image/png":  ".png",
     "image/webp": ".webp",
+}
+ALLOWED_VIDEO_TYPES = {
+    "video/mp4":       ".mp4",
+    "video/webm":      ".webm",
+    "video/quicktime": ".mov",
+    "video/x-msvideo": ".avi",
 }
 # Decompression-bomb guard: refuse images larger than 80 megapixels
 Image.MAX_IMAGE_PIXELS = 80_000_000
@@ -55,6 +63,7 @@ from modules.tampering_detection import analyze_tampering
 from modules.face_verification import verify_face_match
 from modules.risk_scoring import compute_risk_score
 from modules.audit_logger import log_screening_result, get_recent_screenings
+from modules.document_liveness import detect_screen_replay, detect_physical_motion, extract_frames
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -176,6 +185,44 @@ def _save_upload(upload: UploadFile) -> str:
     return filepath
 
 
+def _save_upload_video(upload: UploadFile) -> str:
+    """
+    Validate and save a liveness video upload.
+    Accepts mp4/webm/mov/avi up to 50 MB.
+    """
+    ct = (upload.content_type or "").split(";")[0].strip().lower()
+    if ct not in ALLOWED_VIDEO_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported video type '{ct}'. Accepted: {list(ALLOWED_VIDEO_TYPES)}",
+        )
+    ext = ALLOWED_VIDEO_TYPES[ct]
+    filepath = os.path.join(UPLOAD_DIR, f"{uuid.uuid4().hex}{ext}")
+    written = 0
+    try:
+        with open(filepath, "wb") as f:
+            while True:
+                chunk = upload.file.read(1024 * 1024)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > MAX_VIDEO_BYTES:
+                    f.close()
+                    os.remove(filepath)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Video exceeds {MAX_VIDEO_BYTES // (1024*1024)} MB limit",
+                    )
+                f.write(chunk)
+    except HTTPException:
+        raise
+    except Exception as e:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        raise HTTPException(status_code=500, detail=f"Video upload failed: {e}")
+    return filepath
+
+
 def _sha256(path: str) -> str:
     """Compute SHA-256 of a file for chain-of-custody audit records."""
     h = hashlib.sha256()
@@ -248,7 +295,8 @@ async def audit_log(limit: int = 20, _auth=Security(_require_auth)):
 @app.post("/screen-document")
 def screen_document(
     document: UploadFile = File(..., description="Document image (passport, visa, ID card)"),
-    selfie: UploadFile = File(None, description="Optional live selfie for face matching"),
+    selfie:   UploadFile = File(None, description="Optional live selfie for face matching"),
+    video:    UploadFile = File(None, description="Optional 2-3s tilt video for physical liveness check (mp4/webm/mov)"),
     document_type: str = Form(None, description="Optional document type: PASSPORT, VISA, MRZ_ID, NON_MRZ_ID, UNKNOWN"),
     _auth=Security(_require_auth),
 ):
@@ -265,10 +313,13 @@ def screen_document(
     """
     doc_path = None
     selfie_path = None
+    video_path = None
+    frames_dir = None
     results = {
         "ocr": None,
         "tampering": None,
         "face": None,
+        "liveness": None,
         "risk": None,
         "errors": [],
     }
@@ -288,6 +339,11 @@ def screen_document(
             selfie_path = _save_upload(selfie)
             logger.info(f"Selfie saved: {selfie_path}")
             results["selfie_sha256"] = _sha256(selfie_path)
+
+        if video and video.filename:
+            video_path = _save_upload_video(video)
+            logger.info(f"Liveness video saved: {video_path}")
+            results["video_sha256"] = _sha256(video_path)
 
         # ── Module 1+2: MRZ Extraction ────────────────────────────────────
         try:
@@ -325,6 +381,42 @@ def screen_document(
             results["tampering"] = {"tamper_score": 0, "verdict": "Unknown", "error": str(e)}
             results["errors"].append(f"Tampering detection: {e}")
 
+        # ── Module 3.5: Document Liveness ─────────────────────────────────
+        liveness_result = {
+            "screen_replay": None,
+            "physical_motion": None,
+        }
+        try:
+            logger.info("Running document liveness check (Part A: screen replay)...")
+            replay = detect_screen_replay(doc_path)
+            liveness_result["screen_replay"] = replay
+            logger.info(f"Screen replay: {replay.get('is_screen_replay')} ({replay.get('method')})")
+        except Exception as e:
+            logger.error(f"Screen replay detection failed: {e}")
+            liveness_result["screen_replay"] = {"error": str(e), "is_screen_replay": None}
+            results["errors"].append(f"Screen replay detection: {e}")
+
+        if video_path:
+            try:
+                logger.info("Running document liveness check (Part B: physical motion)...")
+                frames_dir = tempfile.mkdtemp(prefix="liveness_frames_")
+                frame_paths = extract_frames(video_path, frames_dir)
+                logger.info(f"Extracted {len(frame_paths)} frames for motion analysis")
+                motion = detect_physical_motion(frames_dir)
+                liveness_result["physical_motion"] = motion
+                logger.info(f"Motion verdict: {motion.get('verdict')}")
+            except Exception as e:
+                logger.error(f"Physical motion detection failed: {e}")
+                liveness_result["physical_motion"] = {"error": str(e), "verdict": "INCONCLUSIVE"}
+                results["errors"].append(f"Physical motion detection: {e}")
+        else:
+            liveness_result["physical_motion"] = {
+                "verdict": "SKIPPED",
+                "note": "No liveness video uploaded",
+            }
+
+        results["liveness"] = liveness_result
+
         # ── Module 4: Face Verification ───────────────────────────────────
         if selfie_path:
             try:
@@ -355,6 +447,7 @@ def screen_document(
                 ocr_result=results["ocr"],
                 tamper_result=results.get("tampering", {"tamper_score": 0}),
                 face_result=results.get("face", {"verified": None}),
+                liveness_result=results.get("liveness", {}),
             )
             results["risk"] = risk_result
             logger.info(f"Risk: {risk_result.get('risk_score')} ({risk_result.get('verdict')})")
@@ -376,13 +469,15 @@ def screen_document(
         raise HTTPException(status_code=500, detail=str(e))
 
     finally:
-        # Clean up uploaded files
-        for path in [doc_path, selfie_path]:
+        # Clean up uploaded files and liveness temp frames
+        for path in [doc_path, selfie_path, video_path]:
             if path and os.path.exists(path):
                 try:
                     os.remove(path)
                 except OSError:
                     pass
+        if frames_dir and os.path.exists(frames_dir):
+            shutil.rmtree(frames_dir, ignore_errors=True)
 
 
 # Mount Frontend UI at root

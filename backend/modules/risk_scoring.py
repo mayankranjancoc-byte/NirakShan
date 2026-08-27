@@ -40,21 +40,30 @@ def compute_risk_score(
     ocr_result: dict,
     tamper_result: dict,
     face_result: dict,
+    liveness_result: dict | None = None,
 ) -> dict:
     """
     Combine all module outputs into a unified risk assessment.
 
     Args:
-        ocr_result: Output from extract_document_fields() (Module 1+2)
-        tamper_result: Output from analyze_tampering() (Module 3)
-        face_result: Output from verify_face_match() (Module 4)
+        ocr_result:      Output from extract_document_fields() (Module 1+2)
+        tamper_result:   Output from analyze_tampering() (Module 3)
+        face_result:     Output from verify_face_match() (Module 4)
+        liveness_result: Output from document_liveness module (Module 3.5)
+                         Dict with keys "screen_replay" and "physical_motion".
+                         Pass None or {} to skip liveness scoring.
 
     Returns:
         dict with:
-          - risk_score: 0-100 overall risk
+          - risk_score: 0–125 overall risk (125 = max; 100 = max without liveness)
           - verdict: "LOW" / "MEDIUM" / "HIGH"
           - flags: list of specific risk reasons
           - breakdown: per-component scores
+
+    Verdict thresholds (adjusted for 125-pt budget):
+      LOW:    0–29
+      MEDIUM: 30–74
+      HIGH:   75+
     """
     flags = []
     breakdown = {}
@@ -222,13 +231,109 @@ def compute_risk_score(
     }
     score += face_score
 
-    # ── Final Verdict ─────────────────────────────────────────────────────────
+    # ── Module 3.5: Document Liveness ─────────────────────────────────────────
 
-    score = round(min(score, 100.0), 2)
+    liveness_score = 0.0
+    lr = liveness_result or {}
+    sr = lr.get("screen_replay") or {}
+    pm = lr.get("physical_motion") or {}
 
-    if score < 25:
+    # — Part A: Screen/Recapture —
+    is_replay = sr.get("is_screen_replay")
+    replay_method = sr.get("method", "unavailable")
+
+    if is_replay is True and replay_method == "svm":
+        liveness_score += 25.0
+        flags.append("SCREEN_REPLAY_SUSPECTED: Document image appears to be captured from a screen or printed photocopy (SVM classifier)")
+        score_breakdown_list.append({
+            "component": "Document Liveness (Part A)",
+            "points_added": 25.0, "max_points": 25.0,
+            "reason": "Screen replay detected by trained SVM classifier",
+        })
+    elif is_replay is True and replay_method == "threshold":
+        liveness_score += 15.0
+        flags.append("SCREEN_REPLAY_SUSPECTED_HEURISTIC: Document image shows moiré/pixel-grid frequency signature — possible screen or photocopy replay (heuristic, not SVM)")
+        score_breakdown_list.append({
+            "component": "Document Liveness (Part A)",
+            "points_added": 15.0, "max_points": 25.0,
+            "reason": "Screen replay suspected by FFT+texture heuristic (SVM not yet trained)",
+        })
+    elif is_replay is False:
+        score_breakdown_list.append({
+            "component": "Document Liveness (Part A)",
+            "points_added": 0.0, "max_points": 25.0,
+            "reason": f"No screen replay pattern detected ({replay_method})",
+        })
+    else:
+        # unavailable / error
+        flags.append("LIVENESS_PART_A_SKIPPED: Screen-replay check unavailable")
+        score_breakdown_list.append({
+            "component": "Document Liveness (Part A)",
+            "points_added": 0.0, "max_points": 25.0,
+            "reason": "Screen-replay check unavailable",
+        })
+
+    # — Part B: Physical Motion —
+    motion_verdict = pm.get("verdict", "SKIPPED")
+
+    if motion_verdict == "STATIC":
+        liveness_score += 20.0
+        flags.append("LIVENESS_CHECK_FAILED: Document shows no physical motion — possible flat-image replay (tilt video provided but no motion detected)")
+        score_breakdown_list.append({
+            "component": "Document Liveness (Part B)",
+            "points_added": 20.0, "max_points": 20.0,
+            "reason": "No specular displacement or hologram shift detected in tilt video",
+        })
+    elif motion_verdict == "INCONCLUSIVE":
+        flags.append("LIVENESS_PART_B_INCONCLUSIVE: Physical motion analysis inconclusive (insufficient frames or coverage)")
+        score_breakdown_list.append({
+            "component": "Document Liveness (Part B)",
+            "points_added": 0.0, "max_points": 20.0,
+            "reason": "Motion analysis inconclusive",
+        })
+    elif motion_verdict == "PHYSICAL":
+        hologram_ok = pm.get("hologram_shift_detected", False)
+        if hologram_ok:
+            score_breakdown_list.append({
+                "component": "Document Liveness (Part B)",
+                "points_added": 0.0, "max_points": 20.0,
+                "reason": "Physical motion and hologram shift confirmed",
+            })
+        else:
+            score_breakdown_list.append({
+                "component": "Document Liveness (Part B)",
+                "points_added": 0.0, "max_points": 20.0,
+                "reason": "Physical motion confirmed (hologram shift marginal but motion present)",
+            })
+    else:
+        # SKIPPED
+        score_breakdown_list.append({
+            "component": "Document Liveness (Part B)",
+            "points_added": 0.0, "max_points": 20.0,
+            "reason": "No liveness video provided; physical motion check skipped",
+        })
+
+    liveness_score = min(liveness_score, 45.0)
+    breakdown["document_liveness"] = {
+        "score": liveness_score,
+        "max_possible": 45,
+        "screen_replay_method": replay_method,
+        "is_screen_replay": is_replay,
+        "physical_motion_verdict": motion_verdict,
+        "fft_peak_ratio": sr.get("fft_peak_ratio"),
+        "texture_uniformity": sr.get("texture_uniformity"),
+        "mean_highlight_displacement_px": pm.get("mean_highlight_displacement_px"),
+        "hologram_hsv_shift": pm.get("hologram_hsv_shift"),
+    }
+    score += liveness_score
+
+    # ── Final Verdict ───────────────────────────────────────────────────
+
+    score = round(score, 2)  # max = 145 pts; cap in verdict logic only
+
+    if score < 30:
         verdict = "LOW"
-    elif score < 60:
+    elif score < 75:
         verdict = "MEDIUM"
     else:
         verdict = "HIGH"

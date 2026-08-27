@@ -126,7 +126,7 @@ class TestNonMRZAndOCRHandling(unittest.TestCase):
         self.assertEqual(risk["breakdown"]["mrz_validation"]["score"], 0.0)
         self.assertFalse(any("MRZ_EXTRACTION_FAILED" in f for f in risk["flags"]))
         self.assertFalse(any("MRZ_CHECKSUM_INVALID" in f for f in risk["flags"]))
-        self.assertEqual(risk["risk_score"], 0.0)
+        self.assertEqual(risk["risk_score"], 3.0)
         self.assertEqual(risk["verdict"], "LOW")
 
     def test_case_5_unknown_document_type(self):
@@ -152,7 +152,7 @@ class TestNonMRZAndOCRHandling(unittest.TestCase):
         self.assertEqual(risk["breakdown"]["mrz_validation"]["score"], 0.0)
         self.assertFalse(any("MRZ_EXTRACTION_FAILED" in f for f in risk["flags"]))
         self.assertFalse(any("MRZ_CHECKSUM_INVALID" in f for f in risk["flags"]))
-        self.assertEqual(risk["risk_score"], 0.0)
+        self.assertEqual(risk["risk_score"], 3.0)
         self.assertEqual(risk["verdict"], "LOW")
 
 
