@@ -51,10 +51,11 @@ BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
-# Add vendor directory to path for image_forensics imports
-VENDOR_DIR = os.path.join(BACKEND_DIR, "vendor", "image_forensics")
-if VENDOR_DIR not in sys.path:
-    sys.path.insert(0, VENDOR_DIR)
+# Add vendor directories to path
+for vendor_pkg in ["image_forensics", "mrz_scanner", "liveness_core"]:
+    pkg_path = os.path.join(BACKEND_DIR, "vendor", vendor_pkg)
+    if pkg_path not in sys.path:
+        sys.path.insert(0, pkg_path)
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Request, Security
 from fastapi.middleware.cors import CORSMiddleware

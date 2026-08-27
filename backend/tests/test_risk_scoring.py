@@ -4,8 +4,8 @@ Focused automated tests for backend/modules/risk_scoring.py
 Validates:
 1. Case 1: No selfie supplied (verified=None) -> SKIPPED (0 penalty, no mismatch flag)
 2. Case 2: Matching selfie (verified=True) -> MATCH (0 penalty, verified=True)
-3. Case 3: Mismatching selfie (verified=False) -> MISMATCH (+20 penalty, FACE_MISMATCH flag)
-4. Case 4: Face verification error -> ERROR (+10 penalty, FACE_VERIFICATION_ERROR flag)
+3. Case 3: Mismatching selfie (verified=False) -> MISMATCH (+20 points, manual review)
+4. Case 4: Face verification error -> INCONCLUSIVE (0 points)
 5. Case 5: Face spoofing -> SPOOF (+10 penalty, FACE_SPOOF_DETECTED flag)
 """
 
@@ -70,8 +70,7 @@ class TestRiskScoringFaceVerification(unittest.TestCase):
             self.assertNotIn("FACE_SPOOF_DETECTED", flag)
             self.assertNotIn("FACE_VERIFICATION_ERROR", flag)
 
-        # Baseline risk should be purely tamper (5 * 0.3 = 1.5).
-        # No selfie means face liveness is skipped, not failed.
+        # Fixed scale: tamper (5 * 0.3) = 1.5 points regardless of optional inputs.
         self.assertEqual(result["risk_score"], 1.5)
         self.assertEqual(result["verdict"], "LOW")
 
@@ -94,9 +93,25 @@ class TestRiskScoringFaceVerification(unittest.TestCase):
         )
 
         face_breakdown = result["breakdown"]["face_verification"]
-        self.assertEqual(face_breakdown["score"], 3.0)
+        self.assertEqual(face_breakdown["score"], 0.0)
         self.assertTrue(face_breakdown["verified"])
         self.assertFalse(any("FACE_MISMATCH" in f for f in result["flags"]))
+
+    def test_optional_successes_do_not_change_the_score(self):
+        """A clean optional check must never lower the same document's score."""
+        skipped = compute_risk_score(
+            self.mock_ocr_valid, self.mock_tamper_authentic,
+            {"verified": None, "is_real": None},
+        )
+        passed = compute_risk_score(
+            self.mock_ocr_valid, self.mock_tamper_authentic,
+            {"verified": True, "is_real": True},
+            liveness_result={
+                "screen_replay": {"is_screen_replay": False, "method": "svm"},
+                "physical_motion": {"verdict": "PHYSICAL"},
+            },
+        )
+        self.assertEqual(skipped["risk_score"], passed["risk_score"])
 
     def test_case_3_selfie_mismatch(self):
         """
@@ -118,15 +133,15 @@ class TestRiskScoringFaceVerification(unittest.TestCase):
         )
 
         face_breakdown = result["breakdown"]["face_verification"]
-        self.assertEqual(face_breakdown["score"], 23.0)
+        self.assertEqual(face_breakdown["score"], 20.0)
         self.assertFalse(face_breakdown["verified"])
         self.assertTrue(any("FACE_MISMATCH" in f for f in result["flags"]))
+        self.assertTrue(result["requires_manual_review"])
 
     def test_case_4_face_verification_error(self):
         """
         Case 4: Face verification encountered an error
-        Must apply 10.0 error penalty and emit a FACE_VERIFICATION_ERROR flag,
-        without being converted into a clean mismatch.
+        Must not penalize a technical error or convert it into a mismatch.
         """
         face_result = {
             "verified": False,
@@ -142,8 +157,8 @@ class TestRiskScoringFaceVerification(unittest.TestCase):
         )
 
         face_breakdown = result["breakdown"]["face_verification"]
-        self.assertEqual(face_breakdown["score"], 13.0)
-        self.assertTrue(any("FACE_VERIFICATION_ERROR" in f for f in result["flags"]))
+        self.assertEqual(face_breakdown["score"], 0.0)
+        self.assertTrue(any("FACE_VERIFICATION_INCONCLUSIVE" in f for f in result["flags"]))
         self.assertFalse(any("FACE_MISMATCH" in f for f in result["flags"]))
 
     def test_case_5_spoof_detected(self):

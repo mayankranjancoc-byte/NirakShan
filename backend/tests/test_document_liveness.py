@@ -169,7 +169,7 @@ class TestLivenessInRiskScoring(unittest.TestCase):
                                              liveness_result=None)
         self.assertEqual(risk_without["risk_score"], risk_with_none["risk_score"])
 
-    def test_screen_replay_svm_adds_25_pts(self):
+    def test_screen_replay_svm_requires_review_without_changing_score(self):
         liveness = {
             "screen_replay": {"is_screen_replay": True, "method": "svm", "confidence": 0.92,
                                "fft_peak_ratio": 0.25, "texture_uniformity": 0.70},
@@ -178,10 +178,11 @@ class TestLivenessInRiskScoring(unittest.TestCase):
         risk = compute_risk_score(self._BASE_OCR, self._BASE_TAMPER, self._BASE_FACE,
                                   liveness_result=liveness)
         bd = risk["breakdown"]["document_liveness"]
-        self.assertEqual(bd["score"], 25.0)
+        self.assertEqual(bd["score"], 0.0)
+        self.assertTrue(risk["requires_manual_review"])
         self.assertTrue(any("SCREEN_REPLAY_SUSPECTED:" in f for f in risk["flags"]))
 
-    def test_screen_replay_threshold_adds_15_pts(self):
+    def test_screen_replay_threshold_requires_review_without_changing_score(self):
         liveness = {
             "screen_replay": {"is_screen_replay": True, "method": "threshold", "confidence": 0.72,
                                "fft_peak_ratio": 0.20, "texture_uniformity": 0.68},
@@ -190,10 +191,11 @@ class TestLivenessInRiskScoring(unittest.TestCase):
         risk = compute_risk_score(self._BASE_OCR, self._BASE_TAMPER, self._BASE_FACE,
                                   liveness_result=liveness)
         bd = risk["breakdown"]["document_liveness"]
-        self.assertEqual(bd["score"], 15.0)
+        self.assertEqual(bd["score"], 0.0)
+        self.assertTrue(risk["requires_manual_review"])
         self.assertTrue(any("SCREEN_REPLAY_SUSPECTED_HEURISTIC" in f for f in risk["flags"]))
 
-    def test_static_motion_adds_20_pts(self):
+    def test_static_motion_requires_review_without_changing_score(self):
         liveness = {
             "screen_replay": {"is_screen_replay": False, "method": "threshold", "confidence": 0.2,
                                "fft_peak_ratio": 0.10, "texture_uniformity": 0.40},
@@ -205,11 +207,11 @@ class TestLivenessInRiskScoring(unittest.TestCase):
         risk = compute_risk_score(self._BASE_OCR, self._BASE_TAMPER, self._BASE_FACE,
                                   liveness_result=liveness)
         bd = risk["breakdown"]["document_liveness"]
-        self.assertEqual(bd["score"], 20.0)
+        self.assertEqual(bd["score"], 0.0)
+        self.assertTrue(risk["requires_manual_review"])
         self.assertTrue(any("LIVENESS_CHECK_FAILED" in f for f in risk["flags"]))
 
-    def test_both_parts_flagged_caps_at_45(self):
-        """SVM replay (25 pts) + STATIC motion (20 pts) = 45 pts (capped)."""
+    def test_both_parts_flagged_require_review_without_score_points(self):
         liveness = {
             "screen_replay": {"is_screen_replay": True, "method": "svm", "confidence": 0.95,
                                "fft_peak_ratio": 0.30, "texture_uniformity": 0.80},
@@ -221,8 +223,8 @@ class TestLivenessInRiskScoring(unittest.TestCase):
         risk = compute_risk_score(self._BASE_OCR, self._BASE_TAMPER, self._BASE_FACE,
                                   liveness_result=liveness)
         bd = risk["breakdown"]["document_liveness"]
-        self.assertLessEqual(bd["score"], 45.0, "Liveness score must be capped at 45")
-        self.assertEqual(bd["score"], 45.0)
+        self.assertEqual(bd["score"], 0.0)
+        self.assertTrue(risk["requires_manual_review"])
 
 
 if __name__ == "__main__":

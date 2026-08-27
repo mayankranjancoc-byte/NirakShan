@@ -4,10 +4,10 @@ NirakShan is a local FastAPI prototype for screening travel and identity documen
 
 ## Verified status
 
-Last verified: **27 August 2026**
+Last verified: **28 August 2026**
 
-- Full automated suite: **35/35 tests passing**.
-- Live bundled-passport request: OCR valid, checksum valid, tamper verdict authentic, screen-replay result advisory only, API response successful.
+- Full automated suite: **36/36 tests passing**.
+- Live bundled-passport request: OCR valid, checksum valid, tamper verdict authentic, fixed-scale risk response successful.
 - Face matching: uses strict portrait crops and currently falls back to **VGG-Face** when optional ArcFace weights are unavailable.
 
 ## Modules
@@ -19,7 +19,7 @@ Last verified: **27 August 2026**
 | 3 | Static tamper forensics | ELA, edge, wavelet, copy-move, and EXIF signals. ELA/wavelet require structural corroboration before affecting the automated score. |
 | 3.5 | Document liveness | Short tilt-video upload/recording, frame extraction, optical flow, highlight motion, and HSV colour-shift analysis. Screen-replay heuristics are advisory until an SVM is trained. |
 | 4 | Face verification | Strict document-portrait/selfie cropping, VGG-Face comparison, quality flags, and cross-attempt identity matching. |
-| 5 | Risk scoring | Explainable LOW/MEDIUM/HIGH score with individual reasons and per-component points. |
+| 5 | Risk scoring | Explainable fixed 0–100 score: OCR/validation (40), tampering (30), and face checks (30). Optional clean checks never change the score; hard signals produce a separate manual-review requirement. |
 
 ## Run locally
 
@@ -51,6 +51,7 @@ cd C:\SPACE\HACKATHONS\SIH\doc-screening-prototype\backend
 
 - The screen-replay fallback is **not** a trained classifier. It exposes FFT/texture signals but does not automatically mark a document as forged; only a trained SVM may issue that verdict.
 - The physical liveness workflow needs real tilted-document and replay-video validation before it is presented as a reliable security control.
+- Document-liveness results are review-only signals until calibrated against a labelled operational dataset; they do not change the fixed risk score.
 - Face anti-spoofing is currently unavailable because PyTorch is not installed. Ordinary document-to-selfie matching remains available through VGG-Face.
 - ArcFace is optional and presently unavailable because its local weights are incomplete; the application deliberately uses VGG-Face instead of failing.
 - This is a decision-support prototype, not a replacement for issuing-authority, blacklist, or ICAO-chip verification systems.

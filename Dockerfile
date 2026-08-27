@@ -33,5 +33,6 @@ WORKDIR /app/backend
 
 EXPOSE 8000
 
-# Run FastAPI app from backend directory
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run FastAPI app from backend directory. Railway injects PORT at runtime;
+# use 8000 only when running the container locally.
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

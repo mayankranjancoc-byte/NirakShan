@@ -12,7 +12,7 @@ Weight rationale:
   - Face mismatch: strong signal of identity fraud (20 pts)
   - Face liveness fail: indicates photo spoofing (10 pts)
 
-Total possible: 100 points
+Fixed scoring scale: 100 points
   0-25  -> LOW risk (likely genuine)
   25-60 -> MEDIUM risk (needs manual review)
   60+   -> HIGH risk (likely fraudulent)
@@ -43,35 +43,34 @@ def compute_risk_score(
     liveness_result: dict | None = None,
 ) -> dict:
     """
-    Combine all module outputs into a unified risk assessment.
+    Combine core module outputs into a fixed 0–100 risk score.
+
+    Optional checks (selfie and document-liveness video) never alter the
+    denominator. A failed optional check creates a manual-review signal, while
+    unavailable checks are reported as inconclusive and do not penalise a
+    traveller.
 
     Args:
         ocr_result:      Output from extract_document_fields() (Module 1+2)
         tamper_result:   Output from analyze_tampering() (Module 3)
         face_result:     Output from verify_face_match() (Module 4)
         liveness_result: Output from document_liveness module (Module 3.5)
-                         Dict with keys "screen_replay" and "physical_motion".
-                         Pass None or {} to skip liveness scoring.
 
     Returns:
         dict with:
-          - risk_score: 0–125 overall risk (125 = max; 100 = max without liveness)
+          - risk_score: fixed 0–100 point score
           - verdict: "LOW" / "MEDIUM" / "HIGH"
           - flags: list of specific risk reasons
           - breakdown: per-component scores
-
-    Verdict thresholds (adjusted for 125-pt budget):
-      LOW:    0–29
-      MEDIUM: 30–74
-      HIGH:   75+
     """
     flags = []
     breakdown = {}
     score_breakdown_list = []
-    score = 0.0
+    
+    earned_points = 0.0
+    requires_manual_review = False
 
     # ── Module 1+2: MRZ/OCR Checksum Validation ──────────────────────────────
-
     ocr_score = 0.0
     mrz_status = ocr_result.get("mrz_status", "")
     ocr_status = ocr_result.get("status", "FAILURE")
@@ -86,11 +85,10 @@ def compute_risk_score(
         score_breakdown_list.append({"component": "MRZ Checksum", "points_added": 0.0, "max_points": 25.0, "reason": "Unknown document type with no MRZ detected"})
     elif effective_mrz_status in ["EXTRACTION_FAILED", "FAILURE"]:
         ocr_score += 25.0
+        requires_manual_review = True
         flags.append("MRZ_EXTRACTION_FAILED: Expected MRZ could not be read from document")
         score_breakdown_list.append({"component": "MRZ Checksum", "points_added": 25.0, "max_points": 25.0, "reason": "Expected MRZ could not be read from document"})
     elif effective_mrz_status == "UNREADABLE":
-        # M3 fix: UNREADABLE is a capture problem, not a forgery indicator.
-        # Give a lower penalty and use a distinct, non-accusatory flag.
         ocr_score += 8.0
         flags.append("MRZ_UNREADABLE: Image quality too low to validate check digits — recapture required")
         score_breakdown_list.append({
@@ -99,17 +97,17 @@ def compute_risk_score(
         })
     elif effective_mrz_status == "INVALID" or checksum_valid is False:
         ocr_score += 25.0
+        requires_manual_review = True
         flags.append("MRZ_CHECKSUM_INVALID: Document MRZ check digits failed validation")
         score_breakdown_list.append({"component": "MRZ Checksum", "points_added": 25.0, "max_points": 25.0, "reason": "Document MRZ check digits failed validation"})
     elif effective_mrz_status in ["VALID", "SUCCESS"]:
         score_breakdown_list.append({"component": "MRZ Checksum", "points_added": 0.0, "max_points": 25.0, "reason": "All checksums valid"})
 
-    # Check document expiry with multi-format parsing (H2 fix)
+    # Check document expiry with multi-format parsing
     expiry_str = ocr_result.get("expiry_date", "")
     if expiry_str:
         expiry_date = _parse_iso(expiry_str)
         if expiry_date is None:
-            # H2 fix: unparseable expiry is a weak flag, not a silent skip
             ocr_score += 5.0
             flags.append(f"EXPIRY_UNPARSEABLE: Expiry '{expiry_str}' could not be interpreted")
             score_breakdown_list.append({
@@ -123,21 +121,19 @@ def compute_risk_score(
         else:
             score_breakdown_list.append({"component": "Document Expiry", "points_added": 0.0, "max_points": 15.0, "reason": "Document is not expired"})
 
-    # Date-logic consistency checks (H2 fix)
+    # Date-logic consistency checks
     dob_str = ocr_result.get("date_of_birth", "")
     dob = _parse_iso(dob_str)
     expiry_date_for_logic = _parse_iso(expiry_str) if expiry_str else None
 
     if dob and dob > date.today():
-        # M5 note: fix the century pivot in ocr_extraction.py BEFORE enabling this
-        # in production, or travellers born before 1969 will trigger this flag.
         ocr_score += 10.0
         flags.append(f"DOB_IN_FUTURE: Date of birth '{dob_str}' is in the future — impossible")
     if dob and expiry_date_for_logic and dob >= expiry_date_for_logic:
         ocr_score += 10.0
         flags.append(f"DATE_LOGIC_INVALID: DOB '{dob_str}' is not before expiry '{expiry_str}'")
 
-    ocr_score = min(ocr_score, 40.0)  # Cap at 40
+    ocr_score = min(ocr_score, 40.0)
     breakdown["mrz_validation"] = {
         "score": round(ocr_score, 2),
         "max_possible": 40,
@@ -146,16 +142,13 @@ def compute_risk_score(
         "checksum_valid": checksum_valid,
         "expiry_date": expiry_str,
     }
-    score += ocr_score
+    earned_points += ocr_score
 
     # ── Module 3: Tampering Detection ─────────────────────────────────────────
-
     tamper_raw = tamper_result.get("tamper_score")
     tamper_verdict_str = tamper_result.get("verdict", "Unknown")
 
     if tamper_raw is None or tamper_verdict_str == "INCONCLUSIVE":
-        # Detectors had insufficient coverage to produce a score.
-        # Report as informational; do not contribute points either way.
         flags.append("TAMPERING_INCONCLUSIVE: Forensic detectors had insufficient coverage to produce a reliable score")
         tamper_score = 0.0
         score_breakdown_list.append({
@@ -163,10 +156,12 @@ def compute_risk_score(
             "reason": "INCONCLUSIVE — detectors could not produce a reliable result",
         })
     else:
-        # Scale 0-100 tamper score to 0-30 range
+        # Scale a bounded 0–100 forensic score to the fixed 0–30 range.
+        tamper_raw = max(0.0, min(float(tamper_raw), 100.0))
         tamper_score = round((tamper_raw / 100.0) * 30.0, 2)
 
         if tamper_raw >= 55:
+            requires_manual_review = True
             flags.append(f"TAMPERING_DETECTED: Document shows signs of forgery (score: {tamper_raw}%)")
             score_breakdown_list.append({"component": "Tamper Detection", "points_added": tamper_score, "max_points": 30.0, "reason": f"Document shows signs of forgery (score: {tamper_raw}%)"})
         elif tamper_raw >= 10:
@@ -183,21 +178,20 @@ def compute_risk_score(
         "degraded": tamper_result.get("degraded", False),
         "detector_coverage": tamper_result.get("detector_coverage"),
     }
-    score += tamper_score
+    earned_points += tamper_score
 
     # ── Module 4: Face Verification ───────────────────────────────────────────
-
-    face_score = 0.0
     face_verified = face_result.get("verified")
     face_error = face_result.get("error")
     is_real = face_result.get("is_real")
-
+    
+    face_score = 0.0
     if face_error:
-        face_score += 10.0
-        flags.append(f"FACE_VERIFICATION_ERROR: {face_error}")
-        score_breakdown_list.append({"component": "Face Matching", "points_added": 10.0, "max_points": 20.0, "reason": f"Face verification error: {face_error}"})
+        flags.append(f"FACE_VERIFICATION_INCONCLUSIVE: {face_error}")
+        score_breakdown_list.append({"component": "Face Matching", "points_added": 0.0, "max_points": 20.0, "reason": f"Inconclusive — face service error: {face_error}"})
     elif face_verified is False:
         face_score += 20.0
+        requires_manual_review = True
         distance = face_result.get("distance", "N/A")
         flags.append(f"FACE_MISMATCH: Document face does not match live photo (distance: {distance})")
         score_breakdown_list.append({"component": "Face Matching", "points_added": 20.0, "max_points": 20.0, "reason": "Document face does not match live photo"})
@@ -208,16 +202,15 @@ def compute_risk_score(
 
     if is_real is False:
         face_score += 10.0
+        requires_manual_review = True
         flags.append("FACE_SPOOF_DETECTED: Live photo appears to be a spoof (not a real face)")
         score_breakdown_list.append({"component": "Face Liveness", "points_added": 10.0, "max_points": 10.0, "reason": "Live photo appears to be a spoof"})
     elif is_real is True:
         score_breakdown_list.append({"component": "Face Liveness", "points_added": 0.0, "max_points": 10.0, "reason": "Live photo appears to be a real face"})
     elif is_real is None and face_verified is not None:
-        # H10 fix: liveness unavailable must be visible, not silently scored 0
-        face_score += 3.0
         flags.append("LIVENESS_NOT_ASSESSED: Anti-spoofing unavailable — presentation attack not ruled out")
         score_breakdown_list.append({
-            "component": "Face Liveness", "points_added": 3.0, "max_points": 10.0,
+            "component": "Face Liveness", "points_added": 0.0, "max_points": 10.0,
             "reason": "Anti-spoofing unavailable; result inconclusive",
         })
     elif is_real is None:
@@ -226,7 +219,7 @@ def compute_risk_score(
             "reason": "No selfie provided; face-liveness check skipped",
         })
 
-    face_score = min(face_score, 30.0)  # Cap at 30
+    face_score = min(face_score, 30.0)
     breakdown["face_verification"] = {
         "score": round(face_score, 2),
         "max_possible": 30,
@@ -234,72 +227,72 @@ def compute_risk_score(
         "is_real": is_real,
         "confidence": face_result.get("confidence"),
     }
-    score += face_score
+    earned_points += face_score
 
     # ── Module 3.5: Document Liveness ─────────────────────────────────────────
-
-    liveness_score = 0.0
     lr = liveness_result or {}
     sr = lr.get("screen_replay") or {}
     pm = lr.get("physical_motion") or {}
 
-    # — Part A: Screen/Recapture —
     is_replay = sr.get("is_screen_replay")
     replay_method = sr.get("method", "unavailable")
+    motion_verdict = pm.get("verdict", "SKIPPED")
+    
+    # Document-liveness models are optional and not calibrated with a labelled
+    # operational dataset. Keep their signals separate from the fixed score.
+    liveness_score = 0.0
 
+    # — Part A: Screen/Recapture —
     if is_replay is True and replay_method == "svm":
-        liveness_score += 25.0
+        requires_manual_review = True
         flags.append("SCREEN_REPLAY_SUSPECTED: Document image appears to be captured from a screen or printed photocopy (SVM classifier)")
         score_breakdown_list.append({
             "component": "Document Liveness (Part A)",
-            "points_added": 25.0, "max_points": 25.0,
+            "points_added": 0.0, "max_points": 0.0,
             "reason": "Screen replay detected by trained SVM classifier",
         })
     elif is_replay is True and replay_method == "threshold":
-        liveness_score += 15.0
+        requires_manual_review = True
         flags.append("SCREEN_REPLAY_SUSPECTED_HEURISTIC: Document image shows moiré/pixel-grid frequency signature — possible screen or photocopy replay (heuristic, not SVM)")
         score_breakdown_list.append({
             "component": "Document Liveness (Part A)",
-            "points_added": 15.0, "max_points": 25.0,
+            "points_added": 0.0, "max_points": 0.0,
             "reason": "Screen replay suspected by FFT+texture heuristic (SVM not yet trained)",
         })
     elif is_replay is False:
         score_breakdown_list.append({
             "component": "Document Liveness (Part A)",
-            "points_added": 0.0, "max_points": 25.0,
+            "points_added": 0.0, "max_points": 0.0,
             "reason": f"No screen replay pattern detected ({replay_method})",
         })
     elif replay_method == "heuristic":
         score_breakdown_list.append({
             "component": "Document Liveness (Part A)",
-            "points_added": 0.0, "max_points": 25.0,
+            "points_added": 0.0, "max_points": 0.0,
             "reason": "Heuristic replay signals are advisory; no trained SVM verdict",
         })
     else:
-        # unavailable / error
         flags.append("LIVENESS_PART_A_SKIPPED: Screen-replay check unavailable")
         score_breakdown_list.append({
             "component": "Document Liveness (Part A)",
-            "points_added": 0.0, "max_points": 25.0,
+            "points_added": 0.0, "max_points": 0.0,
             "reason": "Screen-replay check unavailable",
         })
 
     # — Part B: Physical Motion —
-    motion_verdict = pm.get("verdict", "SKIPPED")
-
     if motion_verdict == "STATIC":
-        liveness_score += 20.0
+        requires_manual_review = True
         flags.append("LIVENESS_CHECK_FAILED: Document shows no physical motion — possible flat-image replay (tilt video provided but no motion detected)")
         score_breakdown_list.append({
             "component": "Document Liveness (Part B)",
-            "points_added": 20.0, "max_points": 20.0,
+            "points_added": 0.0, "max_points": 0.0,
             "reason": "No specular displacement or hologram shift detected in tilt video",
         })
     elif motion_verdict == "INCONCLUSIVE":
         flags.append("LIVENESS_PART_B_INCONCLUSIVE: Physical motion analysis inconclusive (insufficient frames or coverage)")
         score_breakdown_list.append({
             "component": "Document Liveness (Part B)",
-            "points_added": 0.0, "max_points": 20.0,
+            "points_added": 0.0, "max_points": 0.0,
             "reason": "Motion analysis inconclusive",
         })
     elif motion_verdict == "PHYSICAL":
@@ -307,27 +300,26 @@ def compute_risk_score(
         if hologram_ok:
             score_breakdown_list.append({
                 "component": "Document Liveness (Part B)",
-                "points_added": 0.0, "max_points": 20.0,
+                "points_added": 0.0, "max_points": 0.0,
                 "reason": "Physical motion and hologram shift confirmed",
             })
         else:
             score_breakdown_list.append({
                 "component": "Document Liveness (Part B)",
-                "points_added": 0.0, "max_points": 20.0,
+                "points_added": 0.0, "max_points": 0.0,
                 "reason": "Physical motion confirmed (hologram shift marginal but motion present)",
             })
     else:
-        # SKIPPED
         score_breakdown_list.append({
             "component": "Document Liveness (Part B)",
-            "points_added": 0.0, "max_points": 20.0,
+            "points_added": 0.0, "max_points": 0.0,
             "reason": "No liveness video provided; physical motion check skipped",
         })
 
-    liveness_score = min(liveness_score, 45.0)
     breakdown["document_liveness"] = {
         "score": liveness_score,
-        "max_possible": 45,
+        "max_possible": 0,
+        "used_for_review_only": True,
         "screen_replay_method": replay_method,
         "is_screen_replay": is_replay,
         "physical_motion_verdict": motion_verdict,
@@ -336,22 +328,21 @@ def compute_risk_score(
         "mean_highlight_displacement_px": pm.get("mean_highlight_displacement_px"),
         "hologram_hsv_shift": pm.get("hologram_hsv_shift"),
     }
-    score += liveness_score
-
     # ── Final Verdict ───────────────────────────────────────────────────
+    fixed_score = round(min(earned_points, 100.0), 2)
 
-    score = round(score, 2)  # max = 145 pts; cap in verdict logic only
-
-    if score < 30:
+    if fixed_score <= 25:
         verdict = "LOW"
-    elif score < 75:
+    elif fixed_score <= 60:
         verdict = "MEDIUM"
     else:
         verdict = "HIGH"
 
     return {
-        "risk_score": score,
+        "risk_score": fixed_score,
         "verdict": verdict,
+        "requires_manual_review": requires_manual_review,
+        "score_scale": {"minimum": 0, "maximum": 100, "method": "fixed"},
         "flags": flags,
         "breakdown": breakdown,
         "score_breakdown": score_breakdown_list,

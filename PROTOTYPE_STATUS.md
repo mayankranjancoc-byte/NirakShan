@@ -1,6 +1,6 @@
 # NirakShan Prototype Status
 
-> Last verified: **27 August 2026**
+> Last verified: **28 August 2026**
 >
 > Project: `doc-screening-prototype/` · Problem statement: `SIH26188`
 
@@ -9,9 +9,9 @@
 | Check | Result |
 |---|---|
 | Python syntax checks | Passed |
-| Automated tests | **35/35 passed** |
-| `GET /health` | API starts; MRZScanner and a VGG-Face fallback are operational |
-| `POST /screen-document` with bundled passport | Successful JSON response; OCR valid, checksum valid, tampering authentic, LOW risk |
+| Automated tests | **36/36 passed** |
+| `GET /health` | API starts; MRZScanner and lazy-loaded face verification are operational |
+| `POST /screen-document` with bundled passport | Successful JSON response; OCR valid, checksum valid, tampering authentic, fixed-scale LOW risk |
 | Face-match smoke test | Same document portrait compared to itself returned a match after strict cropping |
 
 ## Module stages
@@ -24,7 +24,7 @@
 | **3.5A — Replay** | Advisory prototype | FFT/texture indicators are returned for screen/print replay analysis. | Train and validate the SVM before enabling an automatic replay verdict. |
 | **3.5B — Optical liveness** | Implemented; synthetic tests passed | Video capture/upload, frame extraction, Farneback optical flow, specular motion, HSV colour shift, and explainable verdicts. | Validate with real passport tilt videos, printed-copy attacks, and phone-screen replays. |
 | **4 — Face verification** | Functional fallback | Strict face crops, quality flags, VGG-Face comparison, audit embeddings, and cross-attempt deduplication. | Reinstall optional ArcFace weights; install PyTorch only if face anti-spoofing is required. Test with consented real match/mismatch pairs. |
-| **5 — Risk scoring** | Verified | Explainable point breakdown and LOW/MEDIUM/HIGH verdict; skipped selfie adds no liveness penalty. | Calibrate thresholds against a labelled evaluation set. |
+| **5 — Risk scoring** | Verified | Fixed 0–100 scale: OCR/validation (40), tampering (30), face checks (30). Skipped/clean optional checks cannot lower the score; service failures are inconclusive; hard signals require manual review without overwriting the numeric score. | Calibrate thresholds against a labelled evaluation set. |
 | **UI/API** | Verified | Drag/drop document and selfie upload, optional tilt-video recording/upload, results dashboard, audit endpoint, upload validation, and static frontend mounting. | Conduct browser usability testing on the target demo device. |
 
 ## Current operational decisions
@@ -33,6 +33,8 @@
 - **Face liveness is not claimed as operational.** If PyTorch is unavailable, the output is explicitly marked inconclusive.
 - **Heuristic replay signals do not add fraud points.** This prevents false-positive penalties on genuine documents. A trained SVM may add replay risk points.
 - **A missing selfie is not treated as a face-liveness failure.** It is reported as skipped with zero face-risk points.
+- **The risk score has a fixed denominator.** It is never normalized against whichever optional checks happened to run. Document-liveness findings are visible as review signals until calibrated.
+- **Manual review is separate from score.** MRZ failures, high tamper signals, face mismatch/spoofing, and suspicious liveness results set `requires_manual_review` rather than forcing the score to 100.
 
 ## How to reproduce the verified checks
 

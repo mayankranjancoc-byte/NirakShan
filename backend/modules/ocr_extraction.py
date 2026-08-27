@@ -452,6 +452,20 @@ def extract_document_fields(image_path: str, document_type: str = None) -> dict:
         except Exception:
             raw_text = ""
 
+        # Detect malformed/fake MRZs: if the image has many MRZ filler characters
+        # but the scanner failed, it means the MRZ is severely malformed (e.g. wrong line lengths)
+        if raw_text.count("<") >= 10:
+            return {
+                "document_type": "UNKNOWN_MRZ_DOCUMENT",
+                "status": "EXTRACTION_FAILED",
+                "mrz_status": "EXTRACTION_FAILED",
+                "checksum_valid": False,
+                "extracted_text": raw_text,
+                "error": "MRZ-like text detected but it is severely malformed (likely fake)",
+                "visa_fields": None,
+                "iqa_metrics": iqa_metrics
+            }
+
         return {
             "document_type": "UNKNOWN",
             "status": "DOCUMENT_TYPE_UNKNOWN",

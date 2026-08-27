@@ -244,15 +244,19 @@ function renderResults(data) {
 
     const score = risk.risk_score !== undefined ? risk.risk_score : 0;
     const verdict = risk.verdict || 'UNKNOWN';
+    const reviewRequired = risk.requires_manual_review === true;
 
     scoreVal.textContent = Math.round(score);
-    verdictBadge.textContent = `${verdict} RISK`;
+    verdictBadge.textContent = reviewRequired ? 'MANUAL REVIEW REQUIRED' : `${verdict} RISK`;
 
     // Clear previous classes
     scoreDial.className = 'score-dial';
     verdictBadge.className = 'verdict-badge';
 
-    if (verdict === 'LOW') {
+    if (reviewRequired) {
+        scoreDial.style.borderColor = 'var(--danger)';
+        verdictBadge.classList.add('verdict-high');
+    } else if (verdict === 'LOW') {
         scoreDial.style.borderColor = 'var(--success)';
         verdictBadge.classList.add('verdict-low');
     } else if (verdict === 'MEDIUM') {

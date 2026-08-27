@@ -130,8 +130,8 @@ class TestLivenessUnavailableFlagged(unittest.TestCase):
         )
 
         face_bd = risk["breakdown"].get("face_verification", {})
-        self.assertGreater(face_bd.get("score", 0), 0,
-                           "Unavailable liveness should add a small non-zero penalty")
+        self.assertEqual(face_bd.get("score", 0), 0,
+                         "Unavailable liveness must be inconclusive, not a risk penalty")
 
     def test_liveness_true_no_flag(self):
         from modules.risk_scoring import compute_risk_score
