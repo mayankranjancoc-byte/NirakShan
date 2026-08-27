@@ -489,7 +489,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="NirakShan Document Screening API")
     parser.add_argument("--expose", action="store_true",
                         help="Bind to 0.0.0.0 (external). Default: 127.0.0.1 only.")
-    parser.add_argument("--port", type=int, default=7860)
+    parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
 
     host = "0.0.0.0" if args.expose else "127.0.0.1"
