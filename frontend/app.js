@@ -1,5 +1,5 @@
-// API endpoint configuration
-const API_BASE = window.location.origin.includes('8000') 
+// API endpoint configuration (uses current origin whether localhost:8000 or production Render domain)
+const API_BASE = (window.location.origin && window.location.origin !== 'null' && !window.location.protocol.startsWith('file'))
     ? window.location.origin 
     : 'http://localhost:8000';
 
