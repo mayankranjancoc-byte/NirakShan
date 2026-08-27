@@ -125,8 +125,8 @@ def _liveness_check(
 def _verify_crops(document_crop: str, selfie_crop: str, preferred_model: str) -> dict:
     """Compare already-detected face crops; skip a second, unreliable detection pass."""
     models = [preferred_model]
-    if preferred_model != "VGG-Face":
-        models.append("VGG-Face")
+    if preferred_model != "Facenet":
+        models.append("Facenet")
 
     failures = []
     for model_name in models:
@@ -148,15 +148,7 @@ def _verify_crops(document_crop: str, selfie_crop: str, preferred_model: str) ->
 
 def _resolve_face_model() -> str:
     """Try to build each candidate model; return the first available one."""
-    for candidate in ("ArcFace", "VGG-Face"):
-        if candidate == "ArcFace":
-            weights = os.path.expanduser("~/.face_biometrics/weights/arcface_weights.h5")
-            # FaceBiometrics leaves a small/incomplete target file when a download is
-            # interrupted. Avoid attempting that corrupted model on every
-            # screening request; VGG-Face remains a fully functional fallback.
-            if not os.path.exists(weights) or os.path.getsize(weights) < 100_000_000:
-                logger.warning("ArcFace weights are unavailable or incomplete; using fallback")
-                continue
+    for candidate in ("Facenet", "ArcFace"):
         try:
             FaceBiometrics.build_model(candidate)
             return candidate

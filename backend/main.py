@@ -260,18 +260,10 @@ async def health_check():
         components["mrz_scanner"] = f"unavailable: {e}"
 
     try:
-        from face_biometrics import FaceBiometrics as _DF
-        selected_model = None
-        for _model in ("ArcFace", "VGG-Face"):
-            try:
-                _DF.build_model(_model)
-                selected_model = _model
-                break
-            except Exception as _e:
-                optional_components[_model] = f"unavailable: {_e}"
-        components["face_verification"] = (
-            f"ok ({selected_model})" if selected_model else "unavailable: no face model loaded"
-        )
+        from deepface import DeepFace as _DF
+        # We no longer load the face models in the health check, because Keras models
+        # use too much RAM (500MB+) and will cause OOM crashes on the free tier.
+        components["face_verification"] = "ok (lazy-loaded)"
     except Exception as _e:
         components["face_biometrics"] = f"import error: {_e}"
 
