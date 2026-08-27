@@ -1,9 +1,9 @@
 """
 Module 1 + 2: OCR/MRZ Extraction & Validation
-Built on top of the fastmrz library for MRZ parsing and ICAO 9303 checksum validation.
+Built on top of the mrz_scanner library for MRZ parsing and ICAO 9303 checksum validation.
 License: AGPL-3.0 — copyleft implications if shipped as a hosted service.
 
-fastmrz bundles both MRZ extraction (Module 1) and checksum validation
+mrz_scanner bundles both MRZ extraction (Module 1) and checksum validation
 (Module 2) in a single call via get_details().
 """
 
@@ -17,7 +17,7 @@ import cv2
 import numpy as np
 from PIL import Image
 import pytesseract
-from fastmrz import FastMRZ
+from mrz_scanner import MRZScanner
 
 
 # ── Tesseract path discovery (H1 fix) ───────────────────────────────────
@@ -41,7 +41,7 @@ def _find_tesseract() -> str | None:
 
 
 TESSDATA_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "vendor", "fastmrz", "tessdata")
+    os.path.join(os.path.dirname(__file__), "..", "vendor", "mrz_scanner", "tessdata")
 )
 TESSERACT_PATH = _find_tesseract()
 if TESSERACT_PATH:
@@ -57,7 +57,7 @@ _mrz_lock = __import__("threading").Lock()
 
 
 def get_mrz_reader():
-    """Thread-safe lazy singleton for FastMRZ reader."""
+    """Thread-safe lazy singleton for MRZScanner reader."""
     global _mrz_reader
     if _mrz_reader is None:
         with _mrz_lock:
@@ -67,7 +67,7 @@ def get_mrz_reader():
                         "Tesseract not found. Install it or set TESSERACT_CMD in PATH. "
                         "Windows: https://github.com/UB-Mannheim/tesseract/wiki"
                     )
-                _mrz_reader = FastMRZ(
+                _mrz_reader = MRZScanner(
                     tesseract_path=TESSERACT_PATH,
                     tessdata_path=TESSDATA_DIR,
                 )
@@ -348,7 +348,7 @@ def extract_document_fields(image_path: str, document_type: str = None) -> dict:
                 "error": str(e),
             }
 
-    # Otherwise (MRZ document type or UNKNOWN): Attempt FastMRZ extraction
+    # Otherwise (MRZ document type or UNKNOWN): Attempt MRZScanner extraction
     # M1 fix: use mkdtemp so preprocessing variants are always cleaned up.
     variant_dir = tempfile.mkdtemp(prefix="mrz_variants_")
     try:
@@ -390,18 +390,18 @@ def extract_document_fields(image_path: str, document_type: str = None) -> dict:
     # Assess quality
     iqa_metrics = calculate_image_quality(image_path)
 
-    # Check FastMRZ outcome
+    # Check MRZScanner outcome
     if result is not None and isinstance(result, dict) and "mrz_text" in result:
-        # Use our own independent ICAO 9303 verifier — more robust than FastMRZ's
+        # Use our own independent ICAO 9303 verifier — more robust than MRZScanner's
         # status_message check. Handles Indian/US/UK passports where optional data
-        # position 43 is '<' (not '0') which FastMRZ incorrectly flags as FAILURE.
+        # position 43 is '<' (not '0') which MRZScanner incorrectly flags as FAILURE.
         if result.get("status") == "FAILURE" and result.get("mrz_text"):
             mrz_type_guess = result.get("mrz_type", "TD3")
             if mrz_type_guess in ("TD3", None) and _icao_verify_td3(result["mrz_text"]):
                 result["status"] = "SUCCESS"
                 result["status_message"] = None
 
-        fastmrz_status = result.get("status", "").upper()
+        mrz_scanner_status = result.get("status", "").upper()
         
         mrz_type = doc_type_upper if doc_type_upper in MRZ_DOCUMENT_TYPES else result.get("mrz_type", "PASSPORT")
         if mrz_type in ["VISA", "MRVA", "MRVB"]:
@@ -410,7 +410,7 @@ def extract_document_fields(image_path: str, document_type: str = None) -> dict:
         else:
             visa_fields = None
             
-        if fastmrz_status == "SUCCESS":
+        if mrz_scanner_status == "SUCCESS":
             result["document_type"] = mrz_type
             result["status"] = "VALID"
             result["mrz_status"] = "VALID"
@@ -432,7 +432,7 @@ def extract_document_fields(image_path: str, document_type: str = None) -> dict:
             result["iqa_metrics"] = iqa_metrics
             return result
 
-    # FastMRZ returned No MRZ / FAILURE
+    # MRZScanner returned No MRZ / FAILURE
     if doc_type_upper in MRZ_DOCUMENT_TYPES:
         # Case 1: MRZ was expected for this document type, but extraction failed
         return {
@@ -467,7 +467,7 @@ def extract_document_fields(image_path: str, document_type: str = None) -> dict:
 if __name__ == "__main__":
     import json
 
-    # Default to the sample passport from the cloned fastmrz repo
+    # Default to the sample passport from the cloned mrz_scanner repo
     if len(sys.argv) > 1:
         img_path = sys.argv[1]
     else:
@@ -476,7 +476,7 @@ if __name__ == "__main__":
                 os.path.dirname(__file__),
                 "..",
                 "vendor",
-                "fastmrz",
+                "mrz_scanner",
                 "data",
                 "passport_uk.jpg",
             )

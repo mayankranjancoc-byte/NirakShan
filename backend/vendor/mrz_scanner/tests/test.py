@@ -3,15 +3,15 @@ from pathlib import Path
 
 import numpy as np
 
-from fastmrz import FastMRZ
+from mrz_scanner import MRZScanner
 
 BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = BASE_DIR / "data"
 
-fast_mrz = FastMRZ(tessdata_path=BASE_DIR / "tessdata")
+fast_mrz = MRZScanner(tessdata_path=BASE_DIR / "tessdata")
 
 
-class TestFastMRZMethods(unittest.TestCase):
+class TestMRZScannerMethods(unittest.TestCase):
     def test_process_image(self):
         image_path = DATA_DIR / "td3.jpg"
         processed_image = fast_mrz._process_image(image_path)

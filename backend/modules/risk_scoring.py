@@ -212,13 +212,18 @@ def compute_risk_score(
         score_breakdown_list.append({"component": "Face Liveness", "points_added": 10.0, "max_points": 10.0, "reason": "Live photo appears to be a spoof"})
     elif is_real is True:
         score_breakdown_list.append({"component": "Face Liveness", "points_added": 0.0, "max_points": 10.0, "reason": "Live photo appears to be a real face"})
-    elif is_real is None:
+    elif is_real is None and face_verified is not None:
         # H10 fix: liveness unavailable must be visible, not silently scored 0
         face_score += 3.0
         flags.append("LIVENESS_NOT_ASSESSED: Anti-spoofing unavailable — presentation attack not ruled out")
         score_breakdown_list.append({
             "component": "Face Liveness", "points_added": 3.0, "max_points": 10.0,
             "reason": "Anti-spoofing unavailable; result inconclusive",
+        })
+    elif is_real is None:
+        score_breakdown_list.append({
+            "component": "Face Liveness", "points_added": 0.0, "max_points": 10.0,
+            "reason": "No selfie provided; face-liveness check skipped",
         })
 
     face_score = min(face_score, 30.0)  # Cap at 30
@@ -263,6 +268,12 @@ def compute_risk_score(
             "component": "Document Liveness (Part A)",
             "points_added": 0.0, "max_points": 25.0,
             "reason": f"No screen replay pattern detected ({replay_method})",
+        })
+    elif replay_method == "heuristic":
+        score_breakdown_list.append({
+            "component": "Document Liveness (Part A)",
+            "points_added": 0.0, "max_points": 25.0,
+            "reason": "Heuristic replay signals are advisory; no trained SVM verdict",
         })
     else:
         # unavailable / error
@@ -352,7 +363,7 @@ if __name__ == "__main__":
     import os
     import sys
 
-    # Add vendor path for DocAuth imports
+    # Add vendor path for image_forensics imports
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
     from modules.ocr_extraction import extract_document_fields
@@ -360,7 +371,7 @@ if __name__ == "__main__":
     from modules.face_verification import verify_face_match
 
     sample_dir = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "vendor", "fastmrz", "data")
+        os.path.join(os.path.dirname(__file__), "..", "vendor", "mrz_scanner", "data")
     )
     passport = os.path.join(sample_dir, "passport_uk.jpg")
     td1 = os.path.join(sample_dir, "td1.jpg")

@@ -16,12 +16,12 @@ import json
 
 # Add backend to path
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend"))
-VENDOR_DIR = os.path.join(BACKEND_DIR, "vendor", "docauth")
+VENDOR_DIR = os.path.join(BACKEND_DIR, "vendor", "image_forensics")
 for d in (BACKEND_DIR, VENDOR_DIR):
     if d not in sys.path:
         sys.path.insert(0, d)
 
-SAMPLE_DIR = os.path.join(BACKEND_DIR, "vendor", "fastmrz", "data")
+SAMPLE_DIR = os.path.join(BACKEND_DIR, "vendor", "mrz_scanner", "data")
 SAMPLES = ["passport_uk.jpg", "td1.jpg", "td2.jpg", "td3.jpg", "mrva.jpg", "mrvb.jpg"]
 
 from modules.tampering_detection import analyze_tampering  # noqa: E402

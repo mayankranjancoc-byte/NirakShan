@@ -9,7 +9,7 @@ import pytesseract
 from PIL import Image
 
 
-class FastMRZ:
+class MRZScanner:
     def __init__(self, tesseract_path="", tessdata_path=""):
         self.tesseract_path = tesseract_path
         self.tessdata_path = tessdata_path

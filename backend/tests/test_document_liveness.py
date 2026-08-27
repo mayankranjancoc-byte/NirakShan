@@ -22,12 +22,12 @@ import numpy as np
 
 # Add backend to path
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-VENDOR_DIR = os.path.join(BACKEND_DIR, "vendor", "docauth")
+VENDOR_DIR = os.path.join(BACKEND_DIR, "vendor", "image_forensics")
 for d in (BACKEND_DIR, VENDOR_DIR):
     if d not in sys.path:
         sys.path.insert(0, d)
 
-SAMPLE_DIR = os.path.join(BACKEND_DIR, "vendor", "fastmrz", "data")
+SAMPLE_DIR = os.path.join(BACKEND_DIR, "vendor", "mrz_scanner", "data")
 GENUINE_SAMPLES = [
     os.path.join(SAMPLE_DIR, s)
     for s in ["passport_uk.jpg", "td1.jpg", "td3.jpg"]
@@ -99,7 +99,7 @@ class TestPartAScreenReplay(unittest.TestCase):
         self.assertIn("method", result)
         self.assertIn("fft_peak_ratio", result)
         self.assertIn("texture_uniformity", result)
-        self.assertIn(result["method"], {"svm", "threshold", "unavailable"})
+        self.assertIn(result["method"], {"svm", "heuristic", "unavailable"})
         self.assertIsNone(result.get("error"), f"Unexpected error: {result.get('error')}")
 
     def test_invalid_path_returns_error(self):

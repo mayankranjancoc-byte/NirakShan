@@ -2,17 +2,17 @@
 
 <div align="center">
 
-[![License](https://img.shields.io/badge/license-AGPL%203.0-34D058?color=blue)](https://github.com/sivakumar-mahalingam/fastmrz/blob/main/LICENSE)
-[![Downloads](https://static.pepy.tech/badge/fastmrz)](https://pypistats.org/packages/fastmrz)
+[![License](https://img.shields.io/badge/license-AGPL%203.0-34D058?color=blue)](https://github.com/mrz-scanner-author/mrz_scanner/blob/main/LICENSE)
+[![Downloads](https://static.pepy.tech/badge/mrz_scanner)](https://pypistats.org/packages/mrz_scanner)
 ![Python](https://img.shields.io/badge/python-3.8+-blue?logo=python&logoColor=959DA5)
-[![CodeQL](https://github.com/sivakumar-mahalingam/fastmrz/actions/workflows/codeql.yml/badge.svg)](https://github.com/sivakumar-mahalingam/fastmrz/actions/workflows/codeql.yml)
-[![PyPI](https://img.shields.io/pypi/v/fastmrz.svg?logo=pypi&logoColor=959DA5&color=blue)](https://pypi.org/project/fastmrz/)
+[![CodeQL](https://github.com/mrz-scanner-author/mrz_scanner/actions/workflows/codeql.yml/badge.svg)](https://github.com/mrz-scanner-author/mrz_scanner/actions/workflows/codeql.yml)
+[![PyPI](https://img.shields.io/pypi/v/mrz_scanner.svg?logo=pypi&logoColor=959DA5&color=blue)](https://pypi.org/project/mrz_scanner/)
 
-<a href="https://github.com/sivakumar-mahalingam/fastmrz/" target="_blank">
-    <img src="https://raw.githubusercontent.com/sivakumar-mahalingam/fastmrz/main/docs/FastMRZ.png" target="_blank" />
+<a href="https://github.com/mrz-scanner-author/mrz_scanner/" target="_blank">
+    <img src="https://raw.githubusercontent.com/mrz-scanner-author/mrz_scanner/main/docs/MRZScanner.png" target="_blank" />
 </a>
 
-FastMRZ is an open-source Python package that extracts the Machine Readable Zone (MRZ) from passports and other documents. FastMRZ accepts various input formats such as Image, Base64 string, MRZ string, or NumPy array. 
+MRZScanner is an open-source Python package that extracts the Machine Readable Zone (MRZ) from passports and other documents. MRZScanner accepts various input formats such as Image, Base64 string, MRZ string, or NumPy array. 
 
 [Features](#features) •
 [Built With](#built-with) •
@@ -46,29 +46,29 @@ FastMRZ is an open-source Python package that extracts the Machine Readable Zone
 
 ## ⚙️Installation
 
-1. Install `fastmrz`
+1. Install `mrz_scanner`
     ```bash
-    pip install fastmrz
+    pip install mrz_scanner
     ```
    This can be done through conda too if you prefer.
 
      ```bash
-     conda create -n fastmrz tesseract -c conda-forge
-     conda activate fastmrz
+     conda create -n mrz_scanner tesseract -c conda-forge
+     conda activate mrz_scanner
      ```
 
-2. Copy  the `mrz.traineddata` file from the `tessdata` folder of the [repository](https://github.com/sivakumar-mahalingam/fastmrz/raw/main/tessdata/mrz.traineddata) into the `tessdata` folder of the Tesseract installation on **YOUR MACHINE**
+2. Copy  the `mrz.traineddata` file from the `tessdata` folder of the [repository](https://github.com/mrz-scanner-author/mrz_scanner/raw/main/tessdata/mrz.traineddata) into the `tessdata` folder of the Tesseract installation on **YOUR MACHINE**
 
 ## 💡Example
 
 ```Python
-from fastmrz import FastMRZ
+from mrz_scanner import MRZScanner
 import json
 
-fast_mrz = FastMRZ()
+fast_mrz = MRZScanner()
 # Pass file path of installed Tesseract OCR, incase if not added to PATH variable
-# fast_mrz = FastMRZ(tesseract_path=r'/opt/homebrew/Cellar/tesseract/5.3.4_1/bin/tesseract') # Default path in Mac
-# fast_mrz = FastMRZ(tesseract_path=r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe') # Default path in Windows
+# fast_mrz = MRZScanner(tesseract_path=r'/opt/homebrew/Cellar/tesseract/5.3.4_1/bin/tesseract') # Default path in Mac
+# fast_mrz = MRZScanner(tesseract_path=r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe') # Default path in Windows
 passport_mrz = fast_mrz.get_details("../data/passport_uk.jpg", include_checkdigit=False)
 print("JSON:")
 print(json.dumps(passport_mrz, indent=4))
@@ -121,11 +121,11 @@ There are currently several types of ICAO standard machine-readable zones, which
 
 Now, based on the example of a national passport, let us take a closer look at the MRZ composition.
 
-![MRZ fields distribution](https://raw.githubusercontent.com/sivakumar-mahalingam/fastmrz/main/docs/mrz_fields_distribution.png)
+![MRZ fields distribution](https://raw.githubusercontent.com/mrz-scanner-author/mrz_scanner/main/docs/mrz_fields_distribution.png)
 
 </details>
 
-![MRZ GIF](https://raw.githubusercontent.com/sivakumar-mahalingam/fastmrz/main/docs/mrz.gif)
+![MRZ GIF](https://raw.githubusercontent.com/mrz-scanner-author/mrz_scanner/main/docs/mrz.gif)
 
 ## ✅ToDo
 
@@ -165,14 +165,14 @@ Distributed under the AGPL-3.0 License. See `LICENSE` for more information.
 
 ## 🙏Show your support
 
-Give a ⭐️ if <a href="https://github.com/sivakumar-mahalingam/fastmrz/">this</a> project helped you!
+Give a ⭐️ if <a href="https://github.com/mrz-scanner-author/mrz_scanner/">this</a> project helped you!
 
 ## 🚀Who's Using It?
 
-We’d love to know who’s using **fastmrz**! If your company or project uses this package, feel free to share your story. You can:
+We’d love to know who’s using **mrz_scanner**! If your company or project uses this package, feel free to share your story. You can:
 
-- Open an issue with the title "We are using fastmrz!" and include your project or company name.
+- Open an issue with the title "We are using mrz_scanner!" and include your project or company name.
 
-Thank you for supporting **fastmrz**! 🤟
+Thank you for supporting **mrz_scanner**! 🤟
 
 

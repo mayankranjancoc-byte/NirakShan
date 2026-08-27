@@ -5,16 +5,16 @@ with open("README.md", "r", encoding="utf8") as f:
 
 
 setup(
-    name="fastmrz",
+    name="mrz_scanner",
     version="2.1",
     author="Sivakumar Mahalingam",
     description="Extracts the Machine Readable Zone (MRZ) data from document images",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/sivakumar-mahalingam/fastmrz/",
+    url="https://github.com/mrz-scanner-author/mrz_scanner/",
     project_urls={
-        'Source': 'https://github.com/sivakumar-mahalingam/fastmrz',
-        'Tracker': 'https://github.com/sivakumar-mahalingam/fastmrz/issues',
+        'Source': 'https://github.com/mrz-scanner-author/mrz_scanner',
+        'Tracker': 'https://github.com/mrz-scanner-author/mrz_scanner/issues',
     },
     license="AGPLv3",
     python_requires=">=3.8",
@@ -44,6 +44,6 @@ setup(
         "Topic :: Software Development",
     ],
     keywords=[
-        "fastmrz", "mrz", "image processing", "image recognition", "ocr", "computer vision", "text recognition", "text detection", "artificial intelligence", "onnx"
+        "mrz_scanner", "mrz", "image processing", "image recognition", "ocr", "computer vision", "text recognition", "text detection", "artificial intelligence", "onnx"
     ]
 )

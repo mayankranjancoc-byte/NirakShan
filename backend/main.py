@@ -14,7 +14,6 @@ import shutil
 import hashlib
 import logging
 import tempfile
-import threading
 from contextlib import asynccontextmanager
 
 import numpy as np
@@ -46,9 +45,9 @@ Image.MAX_IMAGE_PIXELS = 80_000_000
 # Set NIRAKSHAN_API_KEY env var to enable. If unset, auth is bypassed (dev mode).
 API_KEY = os.environ.get("NIRAKSHAN_API_KEY", "")
 
-# Add vendor directory to path for DocAuth imports
+# Add vendor directory to path for image_forensics imports
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
-VENDOR_DIR = os.path.join(BACKEND_DIR, "vendor", "docauth")
+VENDOR_DIR = os.path.join(BACKEND_DIR, "vendor", "image_forensics")
 if VENDOR_DIR not in sys.path:
     sys.path.insert(0, VENDOR_DIR)
 
@@ -77,21 +76,10 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 # ── Lifespan: replaces deprecated @app.on_event("startup") ───────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Warm up the FastMRZ singleton
+    # Warm up the lightweight OCR singleton. Face models are loaded lazily by
+    # Module 4 so an unavailable optional ArcFace download cannot delay or
+    # destabilise application startup.
     get_mrz_reader()
-    # 2. Force DeepFace to download weights in a background thread
-    def _bg_preload():
-        try:
-            blank = np.ones((112, 112, 3), dtype=np.uint8) * 255
-            from deepface import DeepFace
-            DeepFace.verify(
-                img1_path=blank, img2_path=blank, model_name="ArcFace",
-                detector_backend="retinaface", anti_spoofing=True,
-                enforce_detection=False, silent=True,
-            )
-        except Exception:
-            pass
-    threading.Thread(target=_bg_preload, daemon=True).start()
     yield
 
 
@@ -259,30 +247,39 @@ def _json_safe(value):
 
 @app.get("/health")
 async def health_check():
-    """Real component health check — does not hard-code model names."""
+    """Real component health check with an explicit face-model fallback."""
     components: dict[str, str] = {}
+    optional_components: dict[str, str] = {}
     try:
         get_mrz_reader()
-        components["fastmrz"] = "ok"
+        components["mrz_scanner"] = "ok"
     except Exception as e:
-        components["fastmrz"] = f"unavailable: {e}"
+        components["mrz_scanner"] = f"unavailable: {e}"
 
     try:
-        from deepface import DeepFace as _DF
+        from face_biometrics import FaceBiometrics as _DF
+        selected_model = None
         for _model in ("ArcFace", "VGG-Face"):
             try:
                 _DF.build_model(_model)
-                components[_model] = "ok"
-                break  # stop at first available model
+                selected_model = _model
+                break
             except Exception as _e:
-                components[_model] = f"unavailable: {_e}"
+                optional_components[_model] = f"unavailable: {_e}"
+        components["face_verification"] = (
+            f"ok ({selected_model})" if selected_model else "unavailable: no face model loaded"
+        )
     except Exception as _e:
-        components["deepface"] = f"import error: {_e}"
+        components["face_biometrics"] = f"import error: {_e}"
 
-    degraded = any(v != "ok" for v in components.values())
+    degraded = components.get("mrz_scanner") != "ok" or components.get("face_verification", "").startswith("unavailable")
     return JSONResponse(
-        status_code=503 if components.get("fastmrz") != "ok" else 200,
-        content={"status": "degraded" if degraded else "ok", "components": components},
+        status_code=503 if components.get("mrz_scanner") != "ok" else 200,
+        content={
+            "status": "degraded" if degraded else "ok",
+            "components": components,
+            "optional_components": optional_components,
+        },
     )
 
 

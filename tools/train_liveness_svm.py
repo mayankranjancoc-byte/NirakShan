@@ -22,7 +22,7 @@ import numpy as np
 
 # Add backend dir so we can import feature extractor
 _BACKEND = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend"))
-_VENDOR = os.path.join(_BACKEND, "vendor", "moire_detector")
+_VENDOR = os.path.join(_BACKEND, "vendor", "liveness_core")
 for _p in (_BACKEND, _VENDOR):
     if _p not in sys.path:
         sys.path.insert(0, _p)

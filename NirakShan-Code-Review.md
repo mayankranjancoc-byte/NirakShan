@@ -1,8 +1,8 @@
 # NirakShan — Code Review
 
-**Repo:** [mayankranjancoc-byte/NirakShan](https://github.com/mayankranjancoc-byte/NirakShan) @ `c5e51fb` (shallow clone, `main`)
+**Repo:** [Project-Core](https://github.com/Project-Core) @ `c5e51fb` (shallow clone, `main`)
 **Scope:** Modules 1–4 (+ Module 5 risk scoring and the orchestration layer, since module defects surface there)
-**Method:** full read of `backend/modules/*`, `backend/main.py`, `backend/tests/*`, and the vendored primitives in `backend/vendor/docauth/src/*` and `backend/vendor/fastmrz/fastmrz/fastmrz.py`. Claims below are marked **[verified]** where confirmed against source, **[inferred]** where reasoned from code but not executed.
+**Method:** full read of `backend/modules/*`, `backend/main.py`, `backend/tests/*`, and the vendored primitives in `backend/vendor/image_forensics/src/*` and `backend/vendor/mrz_scanner/mrz_scanner/mrz_scanner.py`. Claims below are marked **[verified]** where confirmed against source, **[inferred]** where reasoned from code but not executed.
 
 **Not run.** No Python environment was provisioned, so nothing here comes from executing the pipeline. Several findings (notably the false-positive rates in Module 3) are predicted from the mathematics of the scoring functions and should be confirmed by running the measurements in [Recommended validation](#recommended-validation).
 
@@ -20,7 +20,7 @@ The integration work is competent — clean module boundaries, per-module except
 
 And the structural gap: **there is no chip/NFC layer.** For a compliant ePassport the authoritative anti-substitution check is comparing the printed portrait against the chip's signed DG2 image. Without it, the photo-substitution attack the problem statement names first — re-laminated booklet, impostor's own photo — passes cleanly: MRZ checksums are untouched, the printed face matches the live face, and Module 3's heuristics are not reliable enough to catch it. See [Gap A](#gap-a--no-chip-layer).
 
-**Credit where due, verified in source:** `fastmrz` sets `status = "SUCCESS"` only if no individual check digit failed (`fastmrz.py:357-359`), so Module 1's `checksum_valid = True` on SUCCESS is **correct** — I expected this to be conflated and it is not. Per-module `try/except` isolation in `main.py` is genuinely well done. The missing-selfie and non-MRZ penalty fixes recorded in `PROTOTYPE_STATUS.md` §9 are real and correctly implemented.
+**Credit where due, verified in source:** `mrz_scanner` sets `status = "SUCCESS"` only if no individual check digit failed (`mrz_scanner.py:357-359`), so Module 1's `checksum_valid = True` on SUCCESS is **correct** — I expected this to be conflated and it is not. Per-module `try/except` isolation in `main.py` is genuinely well done. The missing-selfie and non-MRZ penalty fixes recorded in `PROTOTYPE_STATUS.md` §9 are real and correctly implemented.
 
 **Counts:** 9 critical · 14 high · 11 medium/low.
 
@@ -112,7 +112,7 @@ Then add the check that *does* matter and is currently missing: **visa validity 
 
 ### 🔴 C3 — AGPL-3.0 dependency vendored into a repo with no root licence
 
-**[verified]** `backend/vendor/fastmrz/` is a full copy of an AGPL-3.0 project, imported directly by `ocr_extraction.py` and served over HTTP by FastAPI. There is **no `LICENSE` file at the repository root** (confirmed: no match for `LICENSE*`), while `PROTOTYPE_STATUS.md` §3 labels Module 5 "MIT".
+**[verified]** `backend/vendor/mrz_scanner/` is a full copy of an AGPL-3.0 project, imported directly by `ocr_extraction.py` and served over HTTP by FastAPI. There is **no `LICENSE` file at the repository root** (confirmed: no match for `LICENSE*`), while `PROTOTYPE_STATUS.md` §3 labels Module 5 "MIT".
 
 AGPL §13 extends copyleft to network use: offering this as a hosted service obliges you to offer the complete corresponding source of the whole work under AGPL. The README's "License Notice" acknowledges the risk but the repository state does not resolve it.
 
@@ -120,8 +120,8 @@ For an SIH project targeting government deployment this is a genuine adoption bl
 
 **Fix.** Pick one, now rather than later:
 1. Add a root `LICENSE` that is AGPL-3.0-compatible and accept the copyleft obligation. Simplest, but constrains downstream deployment.
-2. Replace `fastmrz` with a permissively licensed MRZ path. The MRZ parse and the 7-3-1 check-digit algorithm are ~150 lines and fully specified in ICAO 9303 — writing them yourself removes the dependency entirely and is a *net gain* for the project's technical story, because check-digit validation is deterministic logic you should own and be able to explain.
-3. Isolate `fastmrz` behind a process boundary and document the separation. Legally murkier; I would not rely on it.
+2. Replace `mrz_scanner` with a permissively licensed MRZ path. The MRZ parse and the 7-3-1 check-digit algorithm are ~150 lines and fully specified in ICAO 9303 — writing them yourself removes the dependency entirely and is a *net gain* for the project's technical story, because check-digit validation is deterministic logic you should own and be able to explain.
+3. Isolate `mrz_scanner` behind a process boundary and document the separation. Legally murkier; I would not rely on it.
 
 **Recommendation: option 2.** It converts a compliance liability into a demonstrable, self-owned deterministic layer.
 
@@ -134,10 +134,10 @@ TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 if os.path.exists(TESSERACT_PATH):
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
 ...
-_mrz_reader = FastMRZ(tesseract_path=TESSERACT_PATH, tessdata_path=TESSDATA_DIR)
+_mrz_reader = MRZScanner(tesseract_path=TESSERACT_PATH, tessdata_path=TESSDATA_DIR)
 ```
 
-The `os.path.exists` guard protects `pytesseract`, but `TESSERACT_PATH` is then handed to `FastMRZ` **unguarded**. On macOS and Linux that is a non-existent path, despite the README documenting `brew install tesseract` and `apt-get install tesseract-ocr`. `main.py:280-283` has the same Windows-only `PATH` manipulation using `;` as separator.
+The `os.path.exists` guard protects `pytesseract`, but `TESSERACT_PATH` is then handed to `MRZScanner` **unguarded**. On macOS and Linux that is a non-existent path, despite the README documenting `brew install tesseract` and `apt-get install tesseract-ocr`. `main.py:280-283` has the same Windows-only `PATH` manipulation using `;` as separator.
 
 **Fix.**
 
@@ -165,7 +165,7 @@ def get_mrz_reader():
     if _mrz_reader is None:
         if not TESSERACT_PATH:
             raise RuntimeError("Tesseract not found; install it or set TESSERACT_CMD")
-        _mrz_reader = FastMRZ(tesseract_path=TESSERACT_PATH, tessdata_path=TESSDATA_DIR)
+        _mrz_reader = MRZScanner(tesseract_path=TESSERACT_PATH, tessdata_path=TESSDATA_DIR)
     return _mrz_reader
 ```
 
@@ -275,7 +275,7 @@ finally:
 
 It also measures Laplacian variance over the **whole page**. MRZ readability depends on the MRZ band; a sharp page with a blurry MRZ strip reports as sharp. The threshold `50` is an unsourced heuristic with no calibration against the sample set.
 
-**Fix.** Return `None` on failure and treat it as unknown; compute variance on the MRZ ROI once `fastmrz` has located it; calibrate the threshold against the eight images in `backend/vendor/fastmrz/data/`.
+**Fix.** Return `None` on failure and treat it as unknown; compute variance on the MRZ ROI once `mrz_scanner` has located it; calibrate the threshold against the eight images in `backend/vendor/mrz_scanner/data/`.
 
 ### 🟡 M3 — The `UNREADABLE` state is computed, then rendered meaningless
 
@@ -305,7 +305,7 @@ Even setting aside C2, nothing in `risk_scoring.py` reads `visa_fields`. The pro
 
 ### 🟡 M5 — Inherited: two-digit MRZ years use Python's fixed 1969 pivot
 
-`fastmrz.py:145`: `datetime.strptime(input_date, "%y%m%d")`. **[verified]** Python's `%y` maps `00-68 → 2000-2068` and `69-99 → 1969-1999`.
+`mrz_scanner.py:145`: `datetime.strptime(input_date, "%y%m%d")`. **[verified]** Python's `%y` maps `00-68 → 2000-2068` and `69-99 → 1969-1999`.
 
 ICAO 9303 does not encode a century in MRZ dates; correct implementations use a sliding window per field (DOB must be in the past; expiry within roughly ±15 years). With a fixed pivot, **a traveller born in 1960 (`600101`) is parsed as 2060** — a birth date a century in the future.
 
@@ -333,13 +333,13 @@ def _mrz_date(yymmdd: str, kind: str) -> date | None:
 
 # Module 3 — Tampering Detection
 
-`backend/modules/tampering_detection.py` + `backend/vendor/docauth/src/analysis/*`
+`backend/modules/tampering_detection.py` + `backend/vendor/image_forensics/src/analysis/*`
 
 This module has the deepest problems. All four forensic scores share one root error: **they measure a global average where the phenomenon is local.**
 
 ### 🔴 C4 — Copy-move detection will fire on genuine documents
 
-`vendor/docauth/src/copy_move/detector.py:44-95`. **[verified in source; false-positive rate inferred]**
+`vendor/image_forensics/src/copy_move/detector.py:44-95`. **[verified in source; false-positive rate inferred]**
 
 Three independent defects compound:
 
@@ -421,7 +421,7 @@ For a system whose selling point is a transparent, explainable rule engine, a pu
 
 ### 🟠 H4 — `ela_score` measures mean brightness, not manipulation
 
-`vendor/docauth/src/analysis/ela.py:66-76`. **[verified]**
+`vendor/image_forensics/src/analysis/ela.py:66-76`. **[verified]**
 
 ```python
 max_possible = 255.0 * arr.shape[0] * arr.shape[1] * arr.shape[2]
@@ -772,7 +772,7 @@ You can legitimately develop and test this on team members' own passports with w
 `face_verification.py:162-166` and `main.py:159-162`. **[verified]**
 
 ```python
-arcface_weights = os.path.expanduser("~/.deepface/weights/arcface_weights.h5")
+arcface_weights = os.path.expanduser("~/.face_biometrics/weights/arcface_weights.h5")
 has_arcface = os.path.exists(arcface_weights) and os.path.getsize(arcface_weights) > 100_000_000
 model_name = "ArcFace" if has_arcface else "VGG-Face"
 ```
@@ -782,7 +782,7 @@ This hardcodes the filename, the `.h5` extension, the home-relative path (ignori
 Meanwhile `/health` unconditionally reports:
 
 ```python
-return {"status": "ok", ..., "models_loaded": ["FastMRZ", "ArcFace", "RetinaFace"]}
+return {"status": "ok", ..., "models_loaded": ["MRZScanner", "ArcFace", "RetinaFace"]}
 ```
 
 A health endpoint that always claims success is worse than none — it actively misleads. Note also that `preload_models` warms `detector_backend="retinaface"` while `DETECTION_BACKENDS` prefers `opencv`, so the warm-up may not warm the path actually used.
@@ -793,7 +793,7 @@ A health endpoint that always claims success is worse than none — it actively 
 def _resolve_face_model() -> str:
     for candidate in ("ArcFace", "VGG-Face"):
         try:
-            DeepFace.build_model(candidate)
+            FaceBiometrics.build_model(candidate)
             return candidate
         except Exception as error:
             logger.warning("face model %s unavailable: %s", candidate, error)
@@ -803,17 +803,17 @@ def _resolve_face_model() -> str:
 async def health_check():
     components = {}
     try:
-        get_mrz_reader(); components["fastmrz"] = "ok"
+        get_mrz_reader(); components["mrz_scanner"] = "ok"
     except Exception as e:
-        components["fastmrz"] = f"unavailable: {e}"
+        components["mrz_scanner"] = f"unavailable: {e}"
     for model in ("ArcFace", "VGG-Face"):
         try:
-            DeepFace.build_model(model); components[model] = "ok"
+            FaceBiometrics.build_model(model); components[model] = "ok"
         except Exception as e:
             components[model] = f"unavailable: {e}"
     degraded = any(v != "ok" for v in components.values())
     return JSONResponse(
-        status_code=503 if components.get("fastmrz") != "ok" else 200,
+        status_code=503 if components.get("mrz_scanner") != "ok" else 200,
         content={"status": "degraded" if degraded else "ok", "components": components},
     )
 ```
@@ -823,7 +823,7 @@ async def health_check():
 `face_verification.py:99-113`. **[verified]**
 
 ```python
-faces = DeepFace.extract_faces(img_path=selfie_path, ..., anti_spoofing=True)
+faces = FaceBiometrics.extract_faces(img_path=selfie_path, ..., anti_spoofing=True)
 return faces[0].get("is_real"), None
 ```
 
@@ -884,7 +884,7 @@ if not confidence and threshold > 0:
     confidence = max(0, (1 - distance / threshold)) * 100
 ```
 
-DeepFace's `verify` does not return a `confidence` key, so this fallback is effectively unconditional (and `if not confidence` would also trigger on a legitimate `0`). The result is a linear function of distance-to-boundary, displayed to an officer as `confidence: 87%` — an uncalibrated number wearing the clothes of a probability.
+FaceBiometrics's `verify` does not return a `confidence` key, so this fallback is effectively unconditional (and `if not confidence` would also trigger on a legitimate `0`). The result is a linear function of distance-to-boundary, displayed to an officer as `confidence: 87%` — an uncalibrated number wearing the clothes of a probability.
 
 **Fix.** Either report the raw distance and threshold only, or calibrate genuine/impostor distance distributions on a labelled set and convert via a fitted logistic. Label it `calibrated: false` until you do.
 
@@ -1005,7 +1005,7 @@ def get_mrz_reader():
     if _mrz_reader is None:
         with _mrz_lock:
             if _mrz_reader is None:
-                _mrz_reader = FastMRZ(...)
+                _mrz_reader = MRZScanner(...)
     return _mrz_reader
 ```
 
@@ -1133,7 +1133,7 @@ Also `find_similar_identity` currently does a full table scan with a Python-loop
 
 ### 🟡 M16 — Vendored third-party dataset committed to the repo
 
-`backend/vendor/docauth/Signature Detection and Analysis/data/test/**` contains hundreds of PNG signature specimens from someone else's dataset. This bloats the clone, and the licence and consent basis for redistributing signature images is unexamined. `.gitignore` has the vendor exclusions **commented out**. Remove the data directory from version control and fetch vendored dependencies via a setup script or submodule.
+`backend/vendor/image_forensics/Signature Detection and Analysis/data/test/**` contains hundreds of PNG signature specimens from someone else's dataset. This bloats the clone, and the licence and consent basis for redistributing signature images is unexamined. `.gitignore` has the vendor exclusions **commented out**. Remove the data directory from version control and fetch vendored dependencies via a setup script or submodule.
 
 ---
 
@@ -1164,7 +1164,7 @@ Fix in this sequence. Items are ordered by *risk removed per hour spent*, not by
 16. **H14** — tests for Modules 3 and 4, starting with the genuine-document false-positive test
 17. **H9 / H10** — honest model resolution, real `/health`, liveness on the matched face, penalize unassessed liveness
 18. **H13** — document hashes and a hash-chained audit log
-19. **C3** — resolve the AGPL position; ideally replace `fastmrz` with your own ICAO 9303 parser
+19. **C3** — resolve the AGPL position; ideally replace `mrz_scanner` with your own ICAO 9303 parser
 20. **H12** — drop `async` so screening runs in the threadpool
 
 **Cleanup**

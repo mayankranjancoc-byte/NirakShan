@@ -12,7 +12,7 @@ from modules.ocr_extraction import extract_document_fields
 def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     original_img_path = os.path.abspath(
-        os.path.join(base_dir, "backend", "vendor", "fastmrz", "data", "passport_uk.jpg")
+        os.path.join(base_dir, "backend", "vendor", "mrz_scanner", "data", "passport_uk.jpg")
     )
     
     print(f"Testing original image: {original_img_path}")

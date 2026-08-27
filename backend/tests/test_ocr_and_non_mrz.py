@@ -1,5 +1,5 @@
 """
-Focused automated tests for OCR, FastMRZ, non-MRZ document handling, and risk scoring integration.
+Focused automated tests for OCR, MRZScanner, non-MRZ document handling, and risk scoring integration.
 
 Test cases:
 1. Valid passport with MRZ -> status=VALID, mrz_status=VALID, checksum_valid=True, 0 penalty
@@ -21,7 +21,7 @@ if BACKEND_DIR not in sys.path:
 from modules.ocr_extraction import extract_document_fields
 from modules.risk_scoring import compute_risk_score
 
-SAMPLE_DIR = os.path.join(BACKEND_DIR, "vendor", "fastmrz", "data")
+SAMPLE_DIR = os.path.join(BACKEND_DIR, "vendor", "mrz_scanner", "data")
 PASSPORT_IMG = os.path.join(SAMPLE_DIR, "passport_uk.jpg")
 NOMRZ_IMG = os.path.join(SAMPLE_DIR, "nomrz.jpg")
 
@@ -43,7 +43,7 @@ class TestNonMRZAndOCRHandling(unittest.TestCase):
     def test_case_1_valid_passport_with_mrz(self):
         """
         Case 1: Valid passport with MRZ
-        FastMRZ extracts fields and confirms checksum validity.
+        MRZScanner extracts fields and confirms checksum validity.
         Must receive 0 penalty for MRZ.
         """
         if not os.path.exists(PASSPORT_IMG):
@@ -126,7 +126,7 @@ class TestNonMRZAndOCRHandling(unittest.TestCase):
         self.assertEqual(risk["breakdown"]["mrz_validation"]["score"], 0.0)
         self.assertFalse(any("MRZ_EXTRACTION_FAILED" in f for f in risk["flags"]))
         self.assertFalse(any("MRZ_CHECKSUM_INVALID" in f for f in risk["flags"]))
-        self.assertEqual(risk["risk_score"], 3.0)
+        self.assertEqual(risk["risk_score"], 0.0)
         self.assertEqual(risk["verdict"], "LOW")
 
     def test_case_5_unknown_document_type(self):
@@ -152,7 +152,7 @@ class TestNonMRZAndOCRHandling(unittest.TestCase):
         self.assertEqual(risk["breakdown"]["mrz_validation"]["score"], 0.0)
         self.assertFalse(any("MRZ_EXTRACTION_FAILED" in f for f in risk["flags"]))
         self.assertFalse(any("MRZ_CHECKSUM_INVALID" in f for f in risk["flags"]))
-        self.assertEqual(risk["risk_score"], 3.0)
+        self.assertEqual(risk["risk_score"], 0.0)
         self.assertEqual(risk["verdict"], "LOW")
 
 

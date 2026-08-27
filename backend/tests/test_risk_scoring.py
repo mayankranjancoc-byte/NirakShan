@@ -60,7 +60,7 @@ class TestRiskScoringFaceVerification(unittest.TestCase):
         face_breakdown = result["breakdown"]["face_verification"]
 
         # Assertions
-        self.assertEqual(face_breakdown["score"], 3.0)
+        self.assertEqual(face_breakdown["score"], 0.0)
         self.assertIsNone(face_breakdown["verified"])
         self.assertIsNone(face_breakdown["is_real"])
 
@@ -70,8 +70,9 @@ class TestRiskScoringFaceVerification(unittest.TestCase):
             self.assertNotIn("FACE_SPOOF_DETECTED", flag)
             self.assertNotIn("FACE_VERIFICATION_ERROR", flag)
 
-        # Baseline risk should be purely tamper (5 * 0.3 = 1.5) + face liveness unassessed (3.0)
-        self.assertEqual(result["risk_score"], 4.5)
+        # Baseline risk should be purely tamper (5 * 0.3 = 1.5).
+        # No selfie means face liveness is skipped, not failed.
+        self.assertEqual(result["risk_score"], 1.5)
         self.assertEqual(result["verdict"], "LOW")
 
     def test_case_2_selfie_matching(self):

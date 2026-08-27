@@ -14,12 +14,12 @@ from unittest.mock import patch
 
 # Add backend to path
 BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-VENDOR_DIR = os.path.join(BACKEND_DIR, "vendor", "docauth")
+VENDOR_DIR = os.path.join(BACKEND_DIR, "vendor", "image_forensics")
 for d in (BACKEND_DIR, VENDOR_DIR):
     if d not in sys.path:
         sys.path.insert(0, d)
 
-SAMPLE_DIR = os.path.join(BACKEND_DIR, "vendor", "fastmrz", "data")
+SAMPLE_DIR = os.path.join(BACKEND_DIR, "vendor", "mrz_scanner", "data")
 GENUINE_SAMPLES = [
     s for s in ["passport_uk.jpg", "td1.jpg", "td2.jpg", "td3.jpg", "mrva.jpg", "mrvb.jpg"]
     if os.path.exists(os.path.join(SAMPLE_DIR, s))
@@ -38,7 +38,7 @@ class TestGenuineDocumentFalsePositives(unittest.TestCase):
     and identify which scorer is driving high scores on genuine documents.
     """
 
-    @unittest.skipIf(not GENUINE_SAMPLES, "No sample images found in vendor/fastmrz/data/")
+    @unittest.skipIf(not GENUINE_SAMPLES, "No sample images found in vendor/mrz_scanner/data/")
     def test_genuine_documents_score_authentic(self):
         for name in GENUINE_SAMPLES:
             path = os.path.join(SAMPLE_DIR, name)

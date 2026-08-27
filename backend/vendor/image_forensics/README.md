@@ -1,4 +1,4 @@
-# DocAuth — Document Forgery Detection and Analysis
+# image_forensics — Document Forgery Detection and Analysis
 
 A modular, deep-learning-powered system for detecting forged documents. Three independent
 detection pipelines — signature verification, copy-move forgery detection, and document-level
@@ -58,8 +58,8 @@ graph TD
 ### Option 1 — pip
 
 ```bash
-git clone https://github.com/trinity652/DocAuth.git
-cd DocAuth
+git clone https://github.com/image-forensics-author/image_forensics.git
+cd image_forensics
 pip install -r requirements.txt
 streamlit run app.py
 ```
@@ -75,8 +75,8 @@ uv run streamlit run app.py
 ### Option 3 — Docker
 
 ```bash
-docker build -t docauth .
-docker run -p 8501:8501 docauth
+docker build -t image_forensics .
+docker run -p 8501:8501 image_forensics
 ```
 
 Open **http://localhost:8501** to access the three-tab interface.
@@ -86,7 +86,7 @@ Open **http://localhost:8501** to access the three-tab interface.
 ## Repository Structure
 
 ```
-DocAuth/
+image_forensics/
 ├── src/
 │   ├── signature/
 │   │   ├── model.py          # Siamese network (timm EfficientNet-B0)

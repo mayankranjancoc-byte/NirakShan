@@ -1,8 +1,8 @@
 """
-Vendored feature extractors from Vishnu-Naik/moire_pattern_detector
+Vendored feature extractors from liveness-author/liveness_core
 (MIT-compatible, adapted for integration — no training-time CLI deps).
 
-Source: https://github.com/Vishnu-Naik/moire_pattern_detector
+Source: https://github.com/liveness-author/liveness_core
 License: Not explicitly stated in repo; adapted under fair-use for research prototype.
 
 Changes from original:

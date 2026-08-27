@@ -14,7 +14,7 @@ Uses three detection techniques:
 Weights (C5 fix — single source of truth):
   ELA: 30%%, Edge: 15%%, Copy-Move: 42%%, Wavelet: 10%%, EXIF: 3%%
 
-Thresholds follow DocAuth conventions:
+Thresholds follow image_forensics conventions:
   0-10%%   → Authentic
   10-55%%  → Suspicious
   55-100%% → Forged
@@ -28,8 +28,8 @@ import sys
 import io
 import base64
 
-# Add vendor directory to path so we can import from the cloned DocAuth repo
-VENDOR_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "vendor", "docauth"))
+# Add vendor directory to path so we can import from the cloned image_forensics repo
+VENDOR_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "vendor", "image_forensics"))
 if VENDOR_DIR not in sys.path:
     sys.path.insert(0, VENDOR_DIR)
 
@@ -161,10 +161,9 @@ def analyze_exif(image_path: str) -> dict:
     }
 
     try:
-        img = Image.open(image_path)
-        is_jpeg = img.format in ("JPEG", "JPG")
-
-        exif = img.getexif()
+        with Image.open(image_path) as img:
+            is_jpeg = img.format in ("JPEG", "JPG")
+            exif = img.getexif()
         # Pillow's getexif() returns an Exif object (never None), so check length.
         if len(exif) == 0:
             if is_jpeg:
@@ -337,8 +336,26 @@ def analyze_tampering(image_path: str) -> dict:
         }
 
     total_w = sum(available.values())
+    # ELA and wavelet are useful *supporting* signals, but high values alone
+    # are common on genuine printed documents and scans. Require corroboration
+    # from a structural detector (copy-move or edge) before they affect the
+    # automated verdict. Their raw scores remain in the response for review.
+    structural_support = max(
+        (breakdown.get("copy_move", {}).get("score") or 0) / 100.0,
+        (breakdown.get("edge_detection", {}).get("score") or 0) / 100.0,
+    )
+    structural_gate = min(1.0, max(0.0, (structural_support - 0.15) / 0.35))
+
+    effective_scores = {
+        key: breakdown[key]["score"]
+        for key in available
+    }
+    for supporting_key in ("ela", "wavelet"):
+        if supporting_key in effective_scores:
+            effective_scores[supporting_key] *= structural_gate
+
     combined = sum(
-        breakdown[k]["score"] * w for k, w in available.items()
+        effective_scores[k] * w for k, w in available.items()
     ) / total_w  # renormalize so crashed detectors don’t bias toward Authentic
 
     combined = round(min(combined, 100.0), 2)
@@ -362,6 +379,7 @@ def analyze_tampering(image_path: str) -> dict:
         "ela_heatmap_b64": ela_b64,
         "detector_coverage": coverage,
         "degraded": degraded,
+        "structural_corroboration": round(structural_gate, 4),
         "unavailable_detectors": sorted(set(TAMPER_WEIGHTS) - set(available)),
     }
 
@@ -372,13 +390,13 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         img_path = sys.argv[1]
     else:
-        # Use the same passport sample from fastmrz
+        # Use the same passport sample from mrz_scanner
         img_path = os.path.abspath(
             os.path.join(
                 os.path.dirname(__file__),
                 "..",
                 "vendor",
-                "fastmrz",
+                "mrz_scanner",
                 "data",
                 "passport_uk.jpg",
             )

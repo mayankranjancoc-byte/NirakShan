@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "fastmrz"
+name = "mrz_scanner"
 version = "2.1"
 description = "Extracts the Machine Readable Zone (MRZ) data from document images"
 readme = "README.md"
@@ -33,7 +33,7 @@ classifiers = [
     "Topic :: Software Development",
 ]
 keywords = [
-    "fastmrz",
+    "mrz_scanner",
     "mrz",
     "image processing",
     "image recognition",
@@ -50,19 +50,19 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/sivakumar-mahalingam/fastmrz/"
-Source = "https://github.com/sivakumar-mahalingam/fastmrz"
-Tracker = "https://github.com/sivakumar-mahalingam/fastmrz/issues"
+Homepage = "https://github.com/sivakumar-mahalingam/mrz_scanner/"
+Source = "https://github.com/sivakumar-mahalingam/mrz_scanner"
+Tracker = "https://github.com/sivakumar-mahalingam/mrz_scanner/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["fastmrz"]
+packages = ["mrz_scanner"]
 include = [
-    "fastmrz/**/*.onnx",
+    "mrz_scanner/**/*.onnx",
 ]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "fastmrz",
+    "mrz_scanner",
     "tests",
     "docs",
     "tessdata",
@@ -70,7 +70,7 @@ include = [
     "README.md",
     "LICENSE",
     "CODE_OF_CONDUCT.md",
-    "fastmrz/**/*.onnx",
+    "mrz_scanner/**/*.onnx",
 ]
 
 [project.scripts]

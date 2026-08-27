@@ -7,7 +7,7 @@ import logging
 
 import cv2
 import numpy as np
-from deepface import DeepFace
+from deepface import DeepFace as FaceBiometrics
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # but emit a LOW_QUALITY_PORTRAIT flag.
 MIN_FACE_SIDE_PX = 80
 WARN_FACE_SIDE_PX = 112
-# OpenCV is already bundled with DeepFace and avoids an unexpected first-run
+# OpenCV is already bundled with FaceBiometrics and avoids an unexpected first-run
 # RetinaFace download. RetinaFace remains a strict fallback for harder images.
 DETECTION_BACKENDS = ("opencv", "retinaface")
 
@@ -36,7 +36,7 @@ def _extract_face_crop(
     failures = []
     for backend in DETECTION_BACKENDS:
         try:
-            faces = DeepFace.extract_faces(
+            faces = FaceBiometrics.extract_faces(
                 img_path=image_path,
                 detector_backend=backend,
                 enforce_detection=True,
@@ -109,7 +109,7 @@ def _liveness_check(
     try:
         # Pass the crop directly with skip so we assess the exact same face
         # used for matching — avoids a bystander being checked instead.
-        faces = DeepFace.extract_faces(
+        faces = FaceBiometrics.extract_faces(
             img_path=selfie_crop_path,
             detector_backend="skip",
             enforce_detection=False,
@@ -131,7 +131,7 @@ def _verify_crops(document_crop: str, selfie_crop: str, preferred_model: str) ->
     failures = []
     for model_name in models:
         try:
-            result = DeepFace.verify(
+            result = FaceBiometrics.verify(
                 img1_path=document_crop,
                 img2_path=selfie_crop,
                 model_name=model_name,
@@ -149,12 +149,20 @@ def _verify_crops(document_crop: str, selfie_crop: str, preferred_model: str) ->
 def _resolve_face_model() -> str:
     """Try to build each candidate model; return the first available one."""
     for candidate in ("ArcFace", "VGG-Face"):
+        if candidate == "ArcFace":
+            weights = os.path.expanduser("~/.face_biometrics/weights/arcface_weights.h5")
+            # FaceBiometrics leaves a small/incomplete target file when a download is
+            # interrupted. Avoid attempting that corrupted model on every
+            # screening request; VGG-Face remains a fully functional fallback.
+            if not os.path.exists(weights) or os.path.getsize(weights) < 100_000_000:
+                logger.warning("ArcFace weights are unavailable or incomplete; using fallback")
+                continue
         try:
-            DeepFace.build_model(candidate)
+            FaceBiometrics.build_model(candidate)
             return candidate
         except Exception as error:
             logger.warning("Face model %s unavailable: %s", candidate, error)
-    raise RuntimeError("No face recognition model available; install deepface weights.")
+    raise RuntimeError("No face recognition model available; install face_biometrics weights.")
 
 
 def verify_face_match(
@@ -201,7 +209,7 @@ def verify_face_match(
             flags.append("ANTI_SPOOF_UNAVAILABLE")
 
         try:
-            embedding = DeepFace.represent(
+            embedding = FaceBiometrics.represent(
                 img_path=selfie_crop,
                 model_name=model_name,
                 detector_backend="skip",

@@ -1,97 +1,64 @@
-# AI-Based Fake Identity & Document Screening Prototype
+# NirakShan — AI Document Screening Prototype
 
-A multi-modal border document screening and identity verification prototype. This system integrates open-source optical character recognition (OCR), image forensics, and facial biometrics to compute a composite risk score for travel and identity documents.
+NirakShan is a local FastAPI prototype for screening travel and identity documents. It combines OCR/MRZ validation, image-forensics signals, document liveness checks, face matching, and an explainable risk score.
 
----
+## Verified status
 
-## 🏗 Architecture & Modules
+Last verified: **27 August 2026**
 
-The system acts as glue code orchestrating three open-source repositories and a custom risk-scoring engine:
+- Full automated suite: **35/35 tests passing**.
+- Live bundled-passport request: OCR valid, checksum valid, tamper verdict authentic, screen-replay result advisory only, API response successful.
+- Face matching: uses strict portrait crops and currently falls back to **VGG-Face** when optional ArcFace weights are unavailable.
 
-| Module | Purpose | Source Repo / Dependency | License |
-|---|---|---|---|
-| **Module 1 & 2** | MRZ Extraction & Checksum Validation | [fastmrz](https://github.com/sivakumar-mahalingam/fastmrz) | **AGPL-3.0** |
-| **Module 3** | Document Tampering & Forensics | [DocAuth](https://github.com/trinity652/DocAuth) | **MIT** |
-| **Module 4** | 1:1 Facial Biometric Verification | [deepface](https://github.com/serengil/deepface) | **MIT** |
-| **Module 5** | Rule-based Composite Risk Scoring | *Custom implementation* (`backend/modules/risk_scoring.py`) | MIT |
+## Modules
 
----
+| Module | Capability | Current state |
+|---|---|---|
+| 1 | OCR extraction | MRZScanner reads TD1/TD2/TD3/MRV documents; Tesseract supplies a text fallback for non-MRZ documents. |
+| 2 | Document validation | ICAO check digits, expiry handling, document status, and visa-field parsing. |
+| 3 | Static tamper forensics | ELA, edge, wavelet, copy-move, and EXIF signals. ELA/wavelet require structural corroboration before affecting the automated score. |
+| 3.5 | Document liveness | Short tilt-video upload/recording, frame extraction, optical flow, highlight motion, and HSV colour-shift analysis. Screen-replay heuristics are advisory until an SVM is trained. |
+| 4 | Face verification | Strict document-portrait/selfie cropping, VGG-Face comparison, quality flags, and cross-attempt identity matching. |
+| 5 | Risk scoring | Explainable LOW/MEDIUM/HIGH score with individual reasons and per-component points. |
 
-## ⚡ How to Run Locally
+## Run locally
 
-### Prerequisites
-1. **Python**: Python 3.11 – 3.13 (recommended: Python 3.13)
-2. **Tesseract OCR**:
-   - Windows: Install via Chocolatey (`choco install tesseract -y`) or from [UB Mannheim](https://github.com/UB-Mannheim/tesseract/wiki).
-   - Linux: `sudo apt-get install tesseract-ocr`
-   - macOS: `brew install tesseract`
+Requirements:
 
-### Setup & Launch
+- Python 3.13 with the existing `backend/.venv`
+- Tesseract OCR installed at `C:\Program Files\Tesseract-OCR\tesseract.exe`
 
-1. **Navigate to the prototype directory:**
-   ```bash
-   cd doc-screening-prototype/backend
-   ```
+```powershell
+cd C:\SPACE\HACKATHONS\SIH\doc-screening-prototype\backend
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn main:app --host 127.0.0.1 --port 8000
+```
 
-2. **Activate the Virtual Environment:**
-   - Windows (PowerShell):
-     ```powershell
-     .\.venv\Scripts\Activate.ps1
-     ```
-   - Linux / macOS:
-     ```bash
-     source .venv/bin/activate
-     ```
+Open:
 
-3. **Start the FastAPI Server & Frontend:**
-   ```bash
-   python -m uvicorn main:app --host 0.0.0.0 --port 8000
-   ```
+- Web UI: http://127.0.0.1:8000/
+- API docs: http://127.0.0.1:8000/docs
+- Health: http://127.0.0.1:8000/health
 
-4. **Access the Web Interface & API Docs:**
-   - **Web UI**: Open [http://localhost:8000/](http://localhost:8000/) in your browser.
-   - **Swagger / OpenAPI Documentation**: Open [http://localhost:8000/docs](http://localhost:8000/docs).
+## Test
 
----
+```powershell
+cd C:\SPACE\HACKATHONS\SIH\doc-screening-prototype\backend
+.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py" -v
+```
 
-## 🛡️ Screening Pipeline & Risk Scoring
+## Important limitations
 
-### 1. Document Extraction (MRZ / OCR)
-- Reads Machine Readable Zones compliant with ICAO Doc 9303 (TD1, TD2, TD3, MRV-A, MRV-B).
-- Validates mathematical check digits for document number, date of birth, expiration date, and optional data.
+- The screen-replay fallback is **not** a trained classifier. It exposes FFT/texture signals but does not automatically mark a document as forged; only a trained SVM may issue that verdict.
+- The physical liveness workflow needs real tilted-document and replay-video validation before it is presented as a reliable security control.
+- Face anti-spoofing is currently unavailable because PyTorch is not installed. Ordinary document-to-selfie matching remains available through VGG-Face.
+- ArcFace is optional and presently unavailable because its local weights are incomplete; the application deliberately uses VGG-Face instead of failing.
+- This is a decision-support prototype, not a replacement for issuing-authority, blacklist, or ICAO-chip verification systems.
 
-### 2. Forensic Tamper Detection
-- **Error Level Analysis (ELA)**: Detects compression discrepancies from localized photo/text edits.
-- **Edge Consistency**: Analyzes Canny, Sobel, Laplacian, and Prewitt gradient uniformity to flag spliced artifacts.
-- **Wavelet Decomposition**: Scans high-frequency detail bands for texture irregularities.
-- **Copy-Move Detection**: Employs ORB feature descriptors and RANSAC homography estimation to detect duplicated or cloned sections.
+## Technologies Used
 
-### 3. Biometric Face Verification
-- Computes facial embeddings using deep convolutional networks (VGG-Face).
-- Compares passport/ID portrait against live selfie with distance metrics and threshold gating.
-
-### 4. Composite Risk Scoring Engine
-- **0 – 24**: **LOW RISK** (Document verified, valid checksums, low tamper heuristics, biometric match confirmed).
-- **25 – 59**: **MEDIUM RISK** (Minor flags such as expired validity, moderate edge anomaly, or facial verification discrepancy).
-- **60 – 100**: **HIGH RISK** (Checksum failure, high tampering/cloning score, or severe biometric mismatch).
-
----
-
-## ⚠️ Known Limitations & Scope
-
-1. **Document Format Scope**:
-   - `fastmrz` specifically parses ICAO-compliant MRZ formats (passports, visas, standard national IDs). Non-MRZ documents (certain driver licenses, permits) will not return structured MRZ fields.
-2. **Forensics Sensitivity**:
-   - `DocAuth` algorithms operate on visual and compression heuristics. Heavily compressed social-media scans or low-resolution camera captures may exhibit baseline noise variance.
-3. **Biometric Input Quality**:
-   - Face matching accuracy relies on illumination, pose, and resolution in the document portrait and live capture.
-4. **License Notice**:
-   - `fastmrz` is licensed under **AGPL-3.0**. While suitable for prototypes and internal screening tools, derivative works hosted as a public network service are subject to AGPL copyleft requirements.
-
----
-
-## 📚 Attribution & Acknowledgements
-
-- **FastMRZ**: [https://github.com/sivakumar-mahalingam/fastmrz](https://github.com/sivakumar-mahalingam/fastmrz) (AGPL-3.0)
-- **DocAuth**: [https://github.com/trinity652/DocAuth](https://github.com/trinity652/DocAuth) (MIT)
-- **DeepFace**: [https://github.com/serengil/deepface](https://github.com/serengil/deepface) (MIT)
+- **Backend:** FastAPI, Uvicorn, Python 3.13, SQLite
+- **Computer Vision & Forensics:** OpenCV, NumPy, Pillow, PyWavelets
+- **OCR:** Tesseract OCR, ICAO 9303 MRZ parsing logic
+- **Biometrics & Liveness:** VGG-Face architecture, Farneback Dense Optical Flow, Fast Fourier Transform (FFT)
+- **Frontend:** HTML5, CSS3, Vanilla JavaScript

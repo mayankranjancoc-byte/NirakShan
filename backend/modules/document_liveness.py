@@ -6,7 +6,7 @@ Two sub-components address different attack vectors:
 Part A — Screen/Recapture Detection
     Catches an attacker photographing a phone screen, monitor, or printed photocopy.
     Method: Feature-based SVM classifier using colour moments + difference histograms
-    + gradient-texture descriptors derived from the moire_pattern_detector repo.
+    + gradient-texture descriptors derived from the liveness_core repo.
     Fallback: if no trained SVM exists yet, returns a threshold-based score
     (explicitly labelled "method": "threshold") so the system degrades gracefully.
 
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
 _MODULE_DIR = os.path.dirname(__file__)
-_VENDOR_DIR = os.path.join(_MODULE_DIR, "..", "vendor", "moire_detector")
+_VENDOR_DIR = os.path.join(_MODULE_DIR, "..", "vendor", "liveness_core")
 _MODEL_PATH = os.path.join(_MODULE_DIR, "..", "models", "screen_replay_svm.joblib")
 
 # Add vendor dir to path so we can import features.py
@@ -185,15 +185,21 @@ def detect_screen_replay(image_path: str) -> dict:
             except Exception as e:
                 logger.warning("SVM inference failed, falling back to threshold: %s", e)
 
-        # ── Threshold fallback ────────────────────────────────────────────
-        # Combine both signals with equal weight
+        # ── Heuristic fallback ────────────────────────────────────────────
+        # These signals are useful diagnostics, but they are not calibrated
+        # enough to make an automated fraud decision. In particular, normal
+        # passport scans can contain strong periodic print patterns. Only a
+        # trained SVM is permitted to return a positive replay verdict.
+        #
+        # Keep the calculated suspicion score for the UI and audit trail, but
+        # mark the decision inconclusive so a genuine document is never
+        # penalised solely by this fallback.
         combined = (fft_ratio / _FFT_PEAK_RATIO_THRESHOLD +
                     tex_uni / _TEXTURE_UNIFORMITY_THRESHOLD) / 2.0
-        is_replay = (fft_ratio >= _FFT_PEAK_RATIO_THRESHOLD or
-                     tex_uni >= _TEXTURE_UNIFORMITY_THRESHOLD)
-        result["is_screen_replay"] = bool(is_replay)
+        result["is_screen_replay"] = None
         result["confidence"] = round(float(np.clip(combined / 2.0, 0.0, 1.0)), 4)
-        result["method"] = "threshold"
+        result["method"] = "heuristic"
+        result["note"] = "Advisory heuristic only; a trained SVM is required for a replay verdict."
 
     except Exception as e:
         result["error"] = str(e)

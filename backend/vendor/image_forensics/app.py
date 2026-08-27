@@ -1,5 +1,5 @@
 """
-DocAuth — Document Forgery Detection and Analysis
+image_forensics — Document Forgery Detection and Analysis
 Streamlit multi-tab application.
 
 Run with:
@@ -24,13 +24,13 @@ from PIL import Image
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="DocAuth",
+    page_title="image_forensics",
     page_icon="🔍",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-st.title("DocAuth — Document Forgery Detection")
+st.title("image_forensics — Document Forgery Detection")
 st.caption("Powered by PyTorch Siamese networks · ORB+RANSAC · ELA · EasyOCR · PyWavelets")
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
