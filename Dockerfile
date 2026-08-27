@@ -24,9 +24,10 @@ COPY frontend/ /app/frontend/
 # Install the local mrz_scanner module
 RUN pip install --no-deps -e /app/backend/vendor/mrz_scanner
 
-# Set environment paths
+# Set environment paths and flags
 ENV PYTHONPATH="/app/backend:/app:$PYTHONPATH"
 ENV PYTHONUNBUFFERED=1
+ENV TF_USE_LEGACY_KERAS=1
 
 WORKDIR /app/backend
 

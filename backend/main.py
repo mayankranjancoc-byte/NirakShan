@@ -21,6 +21,7 @@ from PIL import Image
 
 # Set environment variables before importing tensorflow
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["TF_USE_LEGACY_KERAS"] = "1"
 os.environ["PYTHONIOENCODING"] = "utf-8"
 
 # ── Upload security constants ──────────────────────────────────────────────
