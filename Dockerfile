@@ -1,29 +1,30 @@
-# Use a slim Python 3.13 image
-FROM python:3.13-slim
+# Use stable Python 3.11 for ML and Computer Vision compatibility
+FROM python:3.11-slim
 
-# Install system dependencies (including Tesseract OCR & OpenCV libs)
+# Install system dependencies: Tesseract OCR, libgl for OpenCV, and build tools
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
+    gcc \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Set up working directory
 WORKDIR /app
 
-# Copy requirements and install dependencies
+# Upgrade pip and install clean Python dependencies
 COPY backend/requirements.txt /app/backend/requirements.txt
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /app/backend/requirements.txt
 
-# Copy all source files
+# Copy source code
 COPY backend/ /app/backend/
 COPY frontend/ /app/frontend/
 
-# Install the local mrz_scanner module without fetching its dependencies again
+# Install the local mrz_scanner module
 RUN pip install --no-deps -e /app/backend/vendor/mrz_scanner
 
-# Expose FastAPI default port
 EXPOSE 8000
 
-# Run FastAPI app (automatically mounts frontend from /app/frontend)
+# Run FastAPI app
 CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
