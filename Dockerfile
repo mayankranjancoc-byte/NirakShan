@@ -31,7 +31,7 @@ ENV TF_USE_LEGACY_KERAS=1
 
 WORKDIR /app/backend
 
-EXPOSE 8000
+EXPOSE 7860
 
 # Run FastAPI app from backend directory
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
