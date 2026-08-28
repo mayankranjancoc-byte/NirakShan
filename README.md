@@ -4,13 +4,8 @@ NirakShan is a local FastAPI prototype for screening travel and identity documen
 
 ## Verified status
 
-Last verified: **28 August 2026**
-
-- Full automated suite: **36/36 tests passing**.
 - Live bundled-passport request: OCR valid, checksum valid, tamper verdict authentic, fixed-scale risk response successful.
 - Face matching: uses strict portrait crops and currently falls back to **VGG-Face** when optional ArcFace weights are unavailable.
-- Updated UI and removed obsolete docs.
-
 ## Modules
 
 | Module | Capability | Current state |
