@@ -246,25 +246,39 @@ function renderResults(data) {
     const verdict = risk.verdict || 'UNKNOWN';
     const reviewRequired = risk.requires_manual_review === true;
 
-    scoreVal.textContent = Math.round(score);
+    const boundedScore = Math.max(0, Math.min(Number(score) || 0, 100));
+    scoreVal.textContent = Math.round(boundedScore);
+    scoreDial.setAttribute('aria-label', `Risk score ${Math.round(boundedScore)} out of 100`);
     verdictBadge.textContent = reviewRequired ? 'MANUAL REVIEW REQUIRED' : `${verdict} RISK`;
 
     // Clear previous classes
-    scoreDial.className = 'score-dial';
     verdictBadge.className = 'verdict-badge';
 
+    let scoreColor;
     if (reviewRequired) {
-        scoreDial.style.borderColor = 'var(--danger)';
+        scoreColor = '#ef4444';
         verdictBadge.classList.add('verdict-high');
     } else if (verdict === 'LOW') {
-        scoreDial.style.borderColor = 'var(--success)';
+        scoreColor = '#10b981';
         verdictBadge.classList.add('verdict-low');
     } else if (verdict === 'MEDIUM') {
-        scoreDial.style.borderColor = 'var(--warning)';
+        scoreColor = '#f59e0b';
         verdictBadge.classList.add('verdict-medium');
     } else {
-        scoreDial.style.borderColor = 'var(--danger)';
+        scoreColor = '#ef4444';
         verdictBadge.classList.add('verdict-high');
+    }
+
+    const scoreAngle = `${boundedScore * 3.6}deg`;
+    if (scoreDial) {
+        scoreDial.style.setProperty('--score-angle', scoreAngle);
+        scoreDial.style.setProperty('--score-color', scoreColor);
+        scoreDial.style.background = `conic-gradient(${scoreColor} ${scoreAngle}, #e5e7eb ${scoreAngle})`;
+    }
+
+    const verdictBanner = document.getElementById('verdict-banner');
+    if (verdictBanner) {
+        verdictBanner.style.borderTopColor = scoreColor;
     }
 
     // Flags

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NirakShan - Document Screening</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-background": "#1a1c1c",
+                        "on-primary-fixed": "#111c2d",
+                        "on-primary": "#ffffff",
+                        "surface-dim": "#dadad9",
+                        "on-tertiary-fixed-variant": "#39485a",
+                        "on-primary-container": "#8590a6",
+                        "inverse-primary": "#bcc7de",
+                        "on-error-container": "#93000a",
+                        "surface-container": "#eeeeed",
+                        "secondary-fixed": "#d3e4fe",
+                        "primary-fixed": "#d8e3fb",
+                        "on-surface": "#1a1c1c",
+                        "background": "#f9f9f8",
+                        "surface": "#f9f9f8",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-low": "#f3f4f3",
+                        "on-primary-fixed-variant": "#3c475a",
+                        "surface-bright": "#f9f9f8",
+                        "on-secondary-container": "#54647a",
+                        "tertiary-fixed-dim": "#b9c8de",
+                        "secondary": "#505f76",
+                        "primary": "#091426",
+                        "tertiary-fixed": "#d4e4fa",
+                        "error": "#ba1a1a",
+                        "on-error": "#ffffff",
+                        "surface-variant": "#e2e2e2",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-high": "#e8e8e7",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "inverse-surface": "#2f3130",
+                        "on-surface-variant": "#45474c",
+                        "tertiary-container": "#1b2a3b",
+                        "surface-container-highest": "#e2e2e2",
+                        "outline": "#75777d",
+                        "inverse-on-surface": "#f1f1f0",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed-dim": "#bcc7de",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "on-tertiary-fixed": "#0d1c2d",
+                        "on-secondary-fixed": "#0b1c30",
+                        "primary-container": "#1e293b",
+                        "tertiary": "#061525",
+                        "surface-tint": "#545f73",
+                        "outline-variant": "#c5c6cd",
+                        "error-container": "#ffdad6",
+                        "secondary-container": "#d0e1fb",
+                        "on-tertiary-container": "#8291a6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xs": "4px",
+                        "xl": "32px",
+                        "lg": "24px",
+                        "container-margin": "24px",
+                        "sm": "8px",
+                        "gutter": "16px",
+                        "md": "16px",
+                        "base": "8px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "display": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "display": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-sm": ["11px", { "lineHeight": "14px", "fontWeight": "500" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #FAFAF9; }
+        .card { background-color: #ffffff; border-radius: 0.5rem; border: 1px solid #E7E5E4; box-shadow: 0px 4px 12px rgba(0,0,0,0.03); }
+        .input-ring:focus { outline: 2px solid #1E293B; outline-offset: 2px; }
+    </style>
+</head>
+<body class="font-body-md text-on-surface antialiased bg-background flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-container-margin py-xs max-w-[1440px] mx-auto border-b border-outline-variant bg-surface-container-lowest shadow-sm docked full-width top-0 z-50">
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-primary text-[28px]" style="font-variation-settings: 'FILL' 1;">security</span>
+<div>
+<h1 class="text-headline-md font-headline-md font-bold text-primary tracking-tight">NirakShan</h1>
+<p class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider">Document Screening &amp; Identity Verification</p>
+</div>
+</div>
+<nav class="hidden md:flex gap-lg items-center">
+<a class="text-primary border-b-2 border-primary pb-1 font-bold text-label-md font-label-md hover:bg-surface-container-low transition-colors duration-200" href="#">Dashboard</a>
+<a class="text-secondary hover:text-primary text-label-md font-label-md hover:bg-surface-container-low transition-colors duration-200" href="#">Analytics</a>
+<a class="text-secondary hover:text-primary text-label-md font-label-md hover:bg-surface-container-low transition-colors duration-200" href="#">History</a>
+<a class="text-secondary hover:text-primary text-label-md font-label-md hover:bg-surface-container-low transition-colors duration-200" href="#">Settings</a>
+</nav>
+<div class="flex items-center gap-md">
+<div class="flex items-center gap-sm">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+<span class="text-label-sm font-label-sm text-secondary">System online</span>
+</div>
+<button class="hidden md:flex items-center justify-center bg-primary-container text-on-primary px-4 py-1.5 rounded text-label-md font-label-md hover:opacity-90 transition-opacity">Manual Review</button>
+<button class="text-secondary hover:text-primary transition-colors"><span class="material-symbols-outlined">notifications</span></button>
+<button class="text-secondary hover:text-primary transition-colors"><span class="material-symbols-outlined">help</span></button>
+<img alt="Border Officer Avatar" class="w-8 h-8 rounded-full border border-outline-variant object-cover" data-alt="A small, professional headshot avatar of a border control officer in a smart navy blue uniform against a neutral light grey background, high resolution, sharp focus." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAlZ5-NeKkRouC-R1rUjZLZNGCblCPS8SBuF-CYFve889cJ7XY9qCy6S0oFfTmebPWnpShlLKUaLxk7duoxalYilT4FQR_-5AVmFWxk46Bn0MW83Y4_NI1W7pBYdI6gmy0CeL2OOHMRlKUM_blkkCQ9UNahCqPStmYzm-KDPc9v1__9IY1QgaYzYA_21Bvr8dug8fBsI4Wyi8t5tHo5mSBvF1gSZkPcQNvH6pFqYHTrOWz5rzv_vxIR"/>
+</div>
+</header>
+<!-- Main Layout -->
+<main class="flex-grow w-full max-w-[1440px] mx-auto px-container-margin py-lg grid grid-cols-1 md:grid-cols-12 gap-lg items-start">
+<!-- Left Column: Screening Input (38%) -->
+<aside class="md:col-span-4 flex flex-col gap-md w-full">
+<div class="card p-md flex flex-col gap-md">
+<h2 class="text-headline-md font-headline-md border-b border-surface-variant pb-sm mb-xs">Screening input</h2>
+<!-- Document Image -->
+<div class="flex flex-col gap-xs pb-sm border-b border-surface-variant">
+<label class="text-label-md font-label-md text-on-surface flex items-center gap-xs">Document image <span class="text-error">*</span></label>
+<div class="border border-dashed border-outline-variant rounded-lg p-sm bg-surface-bright relative">
+<div class="flex justify-between items-start mb-sm">
+<div class="text-body-sm font-body-sm text-secondary">JPG/PNG/WebP max 15MB</div>
+<button class="border border-outline-variant text-primary px-3 py-1 rounded text-label-md font-label-md hover:bg-surface-container-low transition-colors bg-white">Browse files</button>
+</div>
+<!-- Preview -->
+<div class="relative rounded overflow-hidden border border-surface-variant group">
+<img alt="Document Preview" class="w-full h-auto object-cover max-h-[200px]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAK7ZW5br6pRynazbM5VfcVCndPsjH8RFQS2z2NCJwO-yPErwIvBl1u4ZUiF8WJAHSUbb1DM7fes3nYyGTAJArTjy_7BSiZDCYrOGHPap3Vyxs7hGrTcGkbdvWsvsK3BoLFE_gCl2_Q-kBBMwPLcBv2dnPn4EFvUnFa3zhkaPjiOUiaOEL6-VnfjgIoFogCf84x2l3dVxxgkaTZ7H_uLjDcJC00CDMOcfCILJ_ZVtcra_SEiClfHc1b8bSL6WRznx3Mfw"/>
+<button class="absolute top-2 right-2 bg-surface-container-lowest/90 text-error p-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center shadow-sm">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Live Selfie -->
+<div class="flex flex-col gap-xs pb-sm border-b border-surface-variant">
+<label class="text-label-md font-label-md text-on-surface">Live selfie <span class="text-secondary font-normal ml-1">(Optional)</span></label>
+<div class="flex items-start gap-md">
+<div class="w-16 h-16 rounded border border-outline-variant overflow-hidden shrink-0 bg-surface-container">
+<!-- Showing a cropped face preview from IMAGE_1 -->
+<div class="w-full h-full bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDq29bRStVixxcCqVhI5VJ28WjqlUbybAv4YuM1dNzm6MPltH7E2Riq6TDfixwyDeFVVFU5uRT1KejdvtaxhkgY0tenCN-N9SwvtnyWkf-1Ccy7-1AJQ03JDe2dcIO0Wzv-ERqVEiocLRIdt_wDQ5bJxmtsLreotjszepLJbFOehygwWr7iK9-sZ2IWk6K3cHNtZ7beQAQ86DfcRDss2PGMXFyENz-b6ndqNN4o5N6Hj94_y0SpslRfFGbe0DGC8-Gs8A'); background-position: center 20%; background-size: 300%;"></div>
+</div>
+<div class="flex flex-col gap-sm items-start">
+<button class="border border-outline-variant text-primary px-3 py-1 rounded text-label-md font-label-md hover:bg-surface-container-low transition-colors bg-white">Browse selfie</button>
+<p class="text-label-sm font-label-sm text-secondary">Used for biometric face verification against the document.</p>
+</div>
+</div>
+</div>
+<!-- Document Liveness Video -->
+<div class="flex flex-col gap-xs">
+<label class="text-label-md font-label-md text-on-surface">Document liveness video <span class="text-secondary font-normal ml-1">(Optional)</span></label>
+<div class="flex gap-sm">
+<button class="border border-outline-variant text-primary px-3 py-1.5 rounded text-label-md font-label-md hover:bg-surface-container-low transition-colors bg-white flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">folder</span> Browse video
+                        </button>
+<button class="border border-outline-variant text-primary px-3 py-1.5 rounded text-label-md font-label-md hover:bg-surface-container-low transition-colors bg-white flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">videocam</span> Record 3s video
+                        </button>
+</div>
+<p class="text-label-sm font-label-sm text-secondary mt-1">Helps detect screen replays or printed attacks.</p>
+</div>
+<!-- Actions -->
+<div class="mt-sm flex flex-col gap-sm pt-sm border-t border-surface-variant">
+<button class="bg-primary-container text-on-primary w-full py-2.5 rounded-lg text-label-md font-label-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-sm">
+<span class="material-symbols-outlined text-[18px]">policy</span> Run security screening
+                    </button>
+<div class="flex items-center justify-center gap-xs text-secondary">
+<span class="material-symbols-outlined text-[14px]">lock</span>
+<span class="text-label-sm font-label-sm">Files used only for this session</span>
+</div>
+</div>
+</div>
+</aside>
+<!-- Right Column: Screening Result (62%) -->
+<section class="md:col-span-8 flex flex-col gap-md w-full">
+<!-- Result Header & Banner -->
+<div class="card p-md flex flex-col gap-md border-t-4 border-t-error">
+<div class="flex justify-between items-center border-b border-surface-variant pb-sm">
+<div class="flex flex-col">
+<span class="text-label-sm font-label-sm text-secondary uppercase tracking-wider">Session ID</span>
+<span class="text-body-sm font-body-sm font-mono text-on-surface">req_948f2b1a_x90</span>
+</div>
+<button class="border border-outline-variant text-primary px-3 py-1.5 rounded text-label-md font-label-md hover:bg-surface-container-low transition-colors bg-white flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">add</span> New screening
+                    </button>
+</div>
+<div class="flex items-center gap-lg">
+<!-- Circular Score -->
+<div class="relative w-24 h-24 flex items-center justify-center shrink-0">
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 36 36">
+<path class="text-surface-variant" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"></path>
+<path class="text-amber-500" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="27, 100" stroke-linecap="round" stroke-width="3"></path>
+</svg>
+<div class="absolute flex flex-col items-center">
+<span class="text-headline-lg font-headline-lg font-bold text-on-surface leading-none">27</span>
+<span class="text-[10px] text-secondary font-medium">/ 100</span>
+</div>
+</div>
+<div class="flex flex-col gap-sm flex-grow">
+<div class="flex gap-2">
+<span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-label-sm font-label-sm border border-amber-200">Medium Risk</span>
+<span class="bg-error-container text-on-error-container px-2 py-0.5 rounded text-label-sm font-label-sm border border-error/20 flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">warning</span> Manual review required
+                            </span>
+</div>
+<div class="bg-surface-container-low p-sm rounded border border-surface-variant">
+<h4 class="text-label-sm font-label-sm text-secondary uppercase mb-1">Review reasons</h4>
+<ul class="text-body-sm font-body-sm text-error list-disc list-inside">
+<li>MRZ checksum failure</li>
+<li>Face verification inconclusive</li>
+</ul>
+</div>
+</div>
+</div>
+<!-- Score Calculation Table -->
+<div class="mt-xs">
+<h3 class="text-label-md font-label-md text-on-surface mb-2">How the score was calculated</h3>
+<div class="border border-surface-variant rounded overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-surface-variant text-label-sm font-label-sm text-secondary">
+<th class="py-2 px-3 font-medium">Component</th>
+<th class="py-2 px-3 font-medium text-right">Points</th>
+<th class="py-2 px-3 font-medium">Reason</th>
+</tr>
+</thead>
+<tbody class="text-body-sm font-body-sm text-on-surface">
+<tr class="border-b border-surface-variant">
+<td class="py-2 px-3 font-medium">Document validation</td>
+<td class="py-2 px-3 text-right">25 <span class="text-secondary text-[11px]">/40</span></td>
+<td class="py-2 px-3 text-error">MRZ checksum failure</td>
+</tr>
+<tr class="border-b border-surface-variant">
+<td class="py-2 px-3 font-medium">Tamper analysis</td>
+<td class="py-2 px-3 text-right">0 <span class="text-secondary text-[11px]">/30</span></td>
+<td class="py-2 px-3 text-secondary">No tampering detected</td>
+</tr>
+<tr class="border-b border-surface-variant">
+<td class="py-2 px-3 font-medium">Face checks</td>
+<td class="py-2 px-3 text-right">2 <span class="text-secondary text-[11px]">/30</span></td>
+<td class="py-2 px-3 text-amber-600">Face verification inconclusive</td>
+</tr>
+<tr>
+<td class="py-2 px-3 font-medium text-secondary">Document liveness</td>
+<td class="py-2 px-3 text-right text-secondary">0 <span class="text-secondary text-[11px]">/0</span></td>
+<td class="py-2 px-3 text-secondary italic">Review-only</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- Detail Cards Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+<!-- OCR & Validation -->
+<div class="card p-md flex flex-col gap-sm">
+<div class="flex justify-between items-center border-b border-surface-variant pb-xs">
+<h3 class="text-label-md font-label-md text-on-surface flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-secondary">text_snippet</span> OCR &amp; Validation</h3>
+<span class="bg-error-container text-on-error-container px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-error/20">Fail</span>
+</div>
+<div class="text-body-sm font-body-sm">
+<div class="flex justify-between py-1 border-b border-surface-variant/50"><span class="text-secondary">Name</span> <span class="font-medium text-right">S. Kumar</span></div>
+<div class="flex justify-between py-1 border-b border-surface-variant/50"><span class="text-secondary">Doc #</span> <span class="font-medium text-right font-mono">Z8392019</span></div>
+<div class="flex justify-between py-1 border-b border-surface-variant/50"><span class="text-secondary">Expiry</span> <span class="font-medium text-right">12/2030</span></div>
+<div class="flex justify-between py-1 mt-1 bg-error-container/20 px-2 -mx-2 rounded"><span class="text-secondary">MRZ Status</span> <span class="text-error font-medium flex items-center gap-1">Checksum Error <span class="material-symbols-outlined text-[14px]">error</span></span></div>
+</div>
+</div>
+<!-- Tamper Analysis -->
+<div class="card p-md flex flex-col gap-sm">
+<div class="flex justify-between items-center border-b border-surface-variant pb-xs">
+<h3 class="text-label-md font-label-md text-on-surface flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-secondary">search</span> Tamper Analysis</h3>
+<span class="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-emerald-200">Pass</span>
+</div>
+<div class="grid grid-cols-2 gap-x-4 gap-y-2 text-body-sm font-body-sm mb-2">
+<div class="flex justify-between"><span class="text-secondary text-label-sm">ELA</span> <span class="text-emerald-600">Clear</span></div>
+<div class="flex justify-between"><span class="text-secondary text-label-sm">Edge</span> <span class="text-emerald-600">Clear</span></div>
+<div class="flex justify-between"><span class="text-secondary text-label-sm">Wavelet</span> <span class="text-emerald-600">Clear</span></div>
+<div class="flex justify-between"><span class="text-secondary text-label-sm">Metadata</span> <span class="text-emerald-600">Clear</span></div>
+</div>
+<div class="h-16 w-full bg-surface-container rounded border border-surface-variant flex items-center justify-center overflow-hidden relative">
+<!-- Abstract forensic heatmap representation -->
+<div class="absolute inset-0 bg-gradient-to-r from-blue-900/10 via-purple-900/20 to-blue-900/10 mix-blend-multiply"></div>
+<span class="text-[10px] text-secondary font-mono z-10 bg-white/80 px-1 rounded">Forensic Heatmap: Negative</span>
+</div>
+</div>
+<!-- Face Verification -->
+<div class="card p-md flex flex-col gap-sm">
+<div class="flex justify-between items-center border-b border-surface-variant pb-xs">
+<h3 class="text-label-md font-label-md text-on-surface flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-secondary">face</span> Face Verification</h3>
+<span class="bg-amber-100 text-amber-800 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-amber-200">Inconclusive</span>
+</div>
+<div class="flex flex-col gap-2 text-body-sm font-body-sm">
+<div class="flex justify-between items-center">
+<span class="text-secondary">Match Distance</span>
+<span class="font-mono text-amber-600 font-medium">0.68</span>
+</div>
+<div class="w-full bg-surface-variant rounded-full h-1.5 mb-1 relative">
+<div class="bg-amber-500 h-1.5 rounded-full" style="width: 68%"></div>
+<div class="absolute top-0 bottom-0 left-[60%] w-0.5 bg-on-surface" title="Threshold: 0.60"></div>
+</div>
+<div class="flex justify-between text-label-sm text-secondary border-t border-surface-variant/50 pt-1 mt-1">
+<span>Threshold: 0.60</span>
+<span class="font-mono text-[10px]">Model: v4-resnet</span>
+</div>
+</div>
+</div>
+<!-- Document Liveness -->
+<div class="card p-md flex flex-col gap-sm opacity-80">
+<div class="flex justify-between items-center border-b border-surface-variant pb-xs">
+<h3 class="text-label-md font-label-md text-on-surface flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-secondary">animation</span> Doc Liveness</h3>
+<span class="bg-surface-variant text-on-surface-variant px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-outline-variant">Skipped</span>
+</div>
+<div class="text-body-sm font-body-sm text-secondary italic mb-2">
+                        No video provided. Review-only parameters.
+                    </div>
+<div class="grid grid-cols-2 gap-2 text-label-sm font-label-sm text-surface-tint">
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">remove</span> Screen-replay</div>
+<div class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">remove</span> Displacement</div>
+<div class="flex items-center gap-1 col-span-2"><span class="material-symbols-outlined text-[14px]">remove</span> Hologram shift</div>
+</div>
+</div>
+</div>
+<!-- JSON Disclosure -->
+<details class="card p-3 border-dashed border-outline-variant group cursor-pointer hover:bg-surface-container-lowest transition-colors mt-sm">
+<summary class="flex items-center gap-2 text-label-sm font-label-sm text-secondary outline-none select-none">
+<span class="material-symbols-outlined text-[16px] group-open:rotate-90 transition-transform">chevron_right</span>
+                    View complete JSON response
+                </summary>
+<div class="mt-2 p-2 bg-surface-container rounded text-[11px] font-mono text-on-surface-variant overflow-x-auto max-h-32 border border-surface-variant">
+                    {<br/>
+                      "session_id": "req_948f2b1a_x90",<br/>
+                      "timestamp": "2023-10-27T14:32:01Z",<br/>
+                      "overall_risk": "MEDIUM",<br/>
+                      "score": 27,<br/>
+                      "flags": ["mrz_checksum_fail", "face_inconclusive"]<br/>
+                      ...<br/>
+                    }
+                </div>
+</details>
+</section>
+</main>
+</body></html>

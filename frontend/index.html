@@ -1,223 +1,417 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Document Screening & Risk Analysis</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>NirakShan - Document Screening</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-background": "#1a1c1c",
+                        "on-primary-fixed": "#111c2d",
+                        "on-primary": "#ffffff",
+                        "surface-dim": "#dadad9",
+                        "on-tertiary-fixed-variant": "#39485a",
+                        "on-primary-container": "#8590a6",
+                        "inverse-primary": "#bcc7de",
+                        "on-error-container": "#93000a",
+                        "surface-container": "#eeeeed",
+                        "secondary-fixed": "#d3e4fe",
+                        "primary-fixed": "#d8e3fb",
+                        "on-surface": "#1a1c1c",
+                        "background": "#f9f9f8",
+                        "surface": "#f9f9f8",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-low": "#f3f4f3",
+                        "on-primary-fixed-variant": "#3c475a",
+                        "surface-bright": "#f9f9f8",
+                        "on-secondary-container": "#54647a",
+                        "tertiary-fixed-dim": "#b9c8de",
+                        "secondary": "#505f76",
+                        "primary": "#091426",
+                        "tertiary-fixed": "#d4e4fa",
+                        "error": "#ba1a1a",
+                        "on-error": "#ffffff",
+                        "surface-variant": "#e2e2e2",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-high": "#e8e8e7",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "inverse-surface": "#2f3130",
+                        "on-surface-variant": "#45474c",
+                        "tertiary-container": "#1b2a3b",
+                        "surface-container-highest": "#e2e2e2",
+                        "outline": "#75777d",
+                        "inverse-on-surface": "#f1f1f0",
+                        "on-secondary": "#ffffff",
+                        "primary-fixed-dim": "#bcc7de",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "on-tertiary-fixed": "#0d1c2d",
+                        "on-secondary-fixed": "#0b1c30",
+                        "primary-container": "#1e293b",
+                        "tertiary": "#061525",
+                        "surface-tint": "#545f73",
+                        "outline-variant": "#c5c6cd",
+                        "error-container": "#ffdad6",
+                        "secondary-container": "#d0e1fb",
+                        "on-tertiary-container": "#8291a6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xs": "4px",
+                        "xl": "32px",
+                        "lg": "24px",
+                        "container-margin": "24px",
+                        "sm": "8px",
+                        "gutter": "16px",
+                        "md": "16px",
+                        "base": "8px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "display": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "display": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "label-sm": ["11px", { "lineHeight": "14px", "fontWeight": "500" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #FAFAF9; }
+        .card { background-color: #ffffff; border-radius: 0.5rem; border: 1px solid #E7E5E4; box-shadow: 0px 4px 12px rgba(0,0,0,0.03); }
+        
+        /* Drag and Drop states */
+        .dragover { background-color: #f1f5f9 !important; border-color: #64748b !important; }
+
+        /* Mappings for app.js hardcoded classes */
+        :root {
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        .verdict-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        
+        .verdict-low { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .verdict-medium { background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+        .verdict-high { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+
+        /* Dynamic score ring. JavaScript sets --score-angle and --score-color. */
+        .score-dial {
+            --score-angle: 0deg;
+            --score-color: #10b981;
+            box-sizing: border-box;
+            width: 96px !important;
+            height: 96px !important;
+            min-width: 96px;
+            max-width: 96px;
+            min-height: 96px;
+            max-height: 96px;
+            flex: 0 0 96px;
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: conic-gradient(var(--score-color, #10b981) var(--score-angle, 0deg), #e5e7eb var(--score-angle, 0deg));
+            padding: 6px;
+            transition: background 0.3s ease;
+        }
+
+        .score-dial > div {
+            box-sizing: border-box;
+            width: 84px;
+            height: 84px;
+            border-radius: 9999px;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1;
+        }
+
+        .badge-success { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .badge-warning { background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+        .badge-danger { background-color: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+
+        .flag-item {
+            color: #b91c1c; /* Text-error */
+            list-style: disc inside;
+            display: list-item;
+        }
+
+        /* Table styling for app.js injected tables */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .data-table td {
+            padding: 4px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .data-table td:last-child {
+            text-align: right;
+            font-weight: 500;
+        }
+        
+        pre {
+            font-family: 'JetBrains Mono', monospace;
+            white-space: pre-wrap;
+        }
+    </style>
 </head>
-<body>
-    <div class="app-container">
-        <!-- Header -->
-        <header class="app-header">
-            <div class="logo-area">
-                <div class="shield-icon">🛡️</div>
-                <div>
-                    <h1>AI Document Screening & Identity Verification</h1>
-                    <p class="subtitle">Automated Border Control & Fraud Detection Prototype</p>
-                </div>
-            </div>
-            <div class="system-status">
-                <span class="status-indicator live"></span>
-                <span id="backend-status">Backend Active</span>
-            </div>
-        </header>
-
-        <!-- Main Content -->
-        <main class="main-grid">
-            <!-- Left Column: Upload Section -->
-            <section class="card upload-section">
-                <h2>Upload Evidence</h2>
-                <p class="section-desc">Submit document scan and optional live photo for multi-modal screening.</p>
-
-                <form id="screening-form">
-                    <!-- Document Upload Box -->
-                    <div class="form-group">
-                        <label class="field-label">Document Image <span class="required">*</span></label>
-                        <div class="dropzone" id="doc-dropzone">
-                            <input type="file" id="document-input" accept="image/*" required>
-                            <div class="dropzone-content">
-                                <div class="upload-icon">📄</div>
-                                <p class="drop-text">Drag & drop passport/ID, or <span>browse</span></p>
-                                <span class="file-hint">Supports JPG, PNG (Passports, Visas, TD1/2/3 IDs)</span>
-                            </div>
-                            <div class="preview-container hidden" id="doc-preview-wrap">
-                                <img id="doc-preview" alt="Document Preview">
-                                <button type="button" class="btn-remove" id="doc-remove-btn">&times;</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Selfie Upload Box -->
-                    <div class="form-group">
-                        <label class="field-label">Live Photo / Selfie <span class="optional">(Optional)</span></label>
-                        <div class="dropzone" id="selfie-dropzone">
-                            <input type="file" id="selfie-input" accept="image/*">
-                            <div class="dropzone-content">
-                                <div class="upload-icon">👤</div>
-                                <p class="drop-text">Drag & drop live selfie, or <span>browse</span></p>
-                                <span class="file-hint">For 1:1 facial biometric matching</span>
-                            </div>
-                            <div class="preview-container hidden" id="selfie-preview-wrap">
-                                <img id="selfie-preview" alt="Selfie Preview">
-                                <button type="button" class="btn-remove" id="selfie-remove-btn">&times;</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Liveness Video Upload Box -->
-                    <div class="form-group">
-                        <label class="field-label">Document Liveness Video <span class="optional">(Optional — tilt document 2–3s)</span></label>
-                        <div class="dropzone" id="video-dropzone" style="cursor:pointer;">
-                            <input type="file" id="video-input" accept="video/*">
-                            <div class="dropzone-content" id="video-drop-content">
-                                <div class="upload-icon">🎥</div>
-                                <p class="drop-text">Drop a short tilt video, or <span>browse</span></p>
-                                <span class="file-hint">MP4 / WebM / MOV — 2–3 seconds of tilting the document</span>
-                                <div style="margin-top:10px;">
-                                    <button type="button" id="record-btn" class="btn-record" onclick="event.stopPropagation()">⏺&nbsp;Record 3s Now</button>
-                                    <span id="liveness-countdown" class="countdown-label"></span>
-                                </div>
-                            </div>
-                            <span id="video-filename" class="video-filename hidden"></span>
-                            <button type="button" class="btn-remove hidden" id="video-remove-btn">&times;</button>
-                        </div>
-                    </div>
-
-                    <button type="submit" id="submit-btn" class="btn-primary">
-                        <span class="btn-text">Run Security Screening</span>
-                        <span class="spinner hidden" id="loading-spinner"></span>
-                    </button>
-                </form>
-            </section>
-
-            <!-- Right Column: Results Section -->
-            <section class="card results-section">
-                <h2>Screening Verdict & Breakdown</h2>
-                
-                <div id="results-placeholder" class="placeholder-state">
-                    <div class="placeholder-icon">🔍</div>
-                    <h3>No Analysis Run Yet</h3>
-                    <p>Upload a document and initiate screening to view risk scores, tampering heuristics, and biometric verification.</p>
-                </div>
-
-                <div id="results-content" class="results-content hidden">
-                    <!-- Top Risk Gauge Banner -->
-                    <div class="verdict-banner" id="verdict-banner">
-                        <div class="score-dial">
-                            <span class="score-value" id="risk-score-val">0</span>
-                            <span class="score-label"> Risk Score</span>
-                        </div>
-                        <div class="verdict-details">
-                            <div class="verdict-badge" id="verdict-badge">LOW RISK</div>
-                            <div class="flags-list" id="flags-list"></div>
-                        </div>
-                    </div>
-
-                    <!-- Risk Score Breakdown Table -->
-                    <div id="score-breakdown-container" style="margin-bottom: 20px; background: var(--card-bg); padding: 15px; border-radius: var(--border-radius); border: 1px solid var(--color-border);">
-                        <h4 style="margin-bottom: 10px; color: var(--text-primary); font-size: 0.95rem;">Risk Score Breakdown — how this score was calculated</h4>
-                        <table class="data-table" style="width: 100%;">
-                            <thead>
-                                <tr>
-                                    <th style="text-align: left;">Component</th>
-                                    <th style="text-align: right;">Points</th>
-                                    <th style="text-align: right;">Max</th>
-                                    <th style="text-align: left;">Reason</th>
-                                </tr>
-                            </thead>
-                            <tbody id="score-breakdown-body"></tbody>
-                        </table>
-                    </div>
-
-                    <!-- Tabs / Modules Breakdown -->
-                    <div class="module-cards-grid">
-                        <!-- Module 1+2: MRZ / OCR -->
-                        <div class="module-card">
-                            <div class="module-header">
-                                <h3>1. Document MRZ & Validation</h3>
-                                <span class="module-tag" id="ocr-badge">SUCCESS</span>
-                            </div>
-                            <div class="module-body" id="ocr-details">
-                                <table class="data-table">
-                                    <tbody id="ocr-table-body"></tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Module 3: Tampering / Forensics -->
-                        <div class="module-card">
-                            <div class="module-header">
-                                <h3>2. Forensics & Tamper Analysis</h3>
-                                <span class="module-tag" id="tamper-badge">AUTHENTIC</span>
-                            </div>
-                            <div class="module-body" id="tamper-details">
-                                <div class="tamper-metrics">
-                                    <div class="metric-item">
-                                        <span class="metric-name">Error Level Analysis (ELA)</span>
-                                        <span class="metric-val" id="metric-ela">0%</span>
-                                    </div>
-                                    <div class="metric-item">
-                                        <span class="metric-name">Edge Inconsistency</span>
-                                        <span class="metric-val" id="metric-edge">0%</span>
-                                    </div>
-                                    <div class="metric-item">
-                                        <span class="metric-name">Wavelet Texture Detail</span>
-                                        <span class="metric-val" id="metric-wavelet">0%</span>
-                                    </div>
-                                    <div class="metric-item">
-                                        <span class="metric-name">Copy-Move (ORB+RANSAC)</span>
-                                        <span class="metric-val" id="metric-copymove">0%</span>
-                                    </div>
-                                    <div class="metric-item" id="exif-metric-item" style="display: none;">
-                                        <span class="metric-name">EXIF Anomaly</span>
-                                        <span class="metric-val" id="metric-exif">0%</span>
-                                    </div>
-                                </div>
-                                <div id="ela-heatmap-container" class="hidden" style="margin-top: 15px;">
-                                    <p class="muted-text" style="font-size: 0.85rem; margin-bottom: 5px;">Forensic Heatmap — bright regions indicate compression anomalies consistent with tampering</p>
-                                    <img id="ela-heatmap-img" style="max-width: 100%; border: 1px solid var(--color-border);" />
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Module 4: Biometric Face Verification -->
-                        <div class="module-card">
-                            <div class="module-header">
-                                <h3>3. Face Biometrics (FaceBiometrics)</h3>
-                                <span class="module-tag" id="face-badge">N/A</span>
-                            </div>
-                            <div class="module-body" id="face-details">
-                                <p id="face-summary" class="muted-text">No live selfie uploaded</p>
-                            </div>
-                        </div>
-                    </div>
-
-                        <!-- Module 3.5: Document Liveness -->
-                        <div class="module-card">
-                            <div class="module-header">
-                                <h3>3.5. Document Liveness</h3>
-                                <span class="module-tag" id="liveness-badge">N/A</span>
-                            </div>
-                            <div class="module-body" id="liveness-details">
-                                <p class="muted-text">Upload or record a short tilt video to enable physical liveness verification. Screen-replay check (Part A) always runs on the document image.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Collapsible Raw JSON Inspector -->
-                    <details class="json-inspector">
-                        <summary>View Complete Raw JSON Response</summary>
-                        <pre><code id="raw-json-output">{}</code></pre>
-                    </details>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <script src="app.js"></script>
-</body>
-</html>
+<body class="font-body-md text-on-surface antialiased bg-background flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-container-margin py-xs max-w-[1440px] mx-auto border-b border-outline-variant bg-surface-container-lowest shadow-sm docked full-width top-0 z-50">
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-primary text-[28px]" style="font-variation-settings: 'FILL' 1;">security</span>
+<div>
+<h1 class="text-headline-md font-headline-md font-bold text-primary tracking-tight">NirakShan</h1>
+<p class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider">Document Screening &amp; Identity Verification</p>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<div class="flex items-center gap-sm">
+<span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+<span id="backend-status" class="text-label-sm font-label-sm text-secondary">System online</span>
+</div>
+</div>
+</header>
+<!-- Main Layout -->
+<main class="flex-grow w-full max-w-[1440px] mx-auto px-container-margin py-lg grid grid-cols-1 md:grid-cols-12 gap-lg items-start">
+<!-- Left Column: Screening Input (38%) -->
+<aside class="md:col-span-4 flex flex-col gap-md w-full">
+<form id="screening-form" class="card p-md flex flex-col gap-md">
+<h2 class="text-headline-md font-headline-md border-b border-surface-variant pb-sm mb-xs">Screening input</h2>
+<!-- Document Image -->
+<div class="flex flex-col gap-xs pb-sm border-b border-surface-variant">
+<label class="text-label-md font-label-md text-on-surface flex items-center gap-xs">Document image <span class="text-error">*</span></label>
+<div id="doc-dropzone" class="border border-dashed border-outline-variant rounded-lg p-sm bg-surface-bright relative transition-colors duration-200" style="cursor:pointer;">
+<input type="file" id="document-input" accept="image/*" required class="hidden" />
+<div class="dropzone-content">
+<div class="flex justify-between items-start mb-sm">
+<div class="text-body-sm font-body-sm text-secondary">JPG/PNG/WebP max 15MB</div>
+<button type="button" onclick="document.getElementById('document-input').click(); event.stopPropagation();" class="border border-outline-variant text-primary px-3 py-1 rounded text-label-md font-label-md hover:bg-surface-container-low transition-colors bg-white">Browse files</button>
+</div>
+<div class="flex items-center justify-center py-4">
+<span class="material-symbols-outlined text-[48px] text-surface-variant">description</span>
+</div>
+</div>
+<!-- Preview -->
+<div id="doc-preview-wrap" class="relative rounded overflow-hidden border border-surface-variant group hidden">
+<img id="doc-preview" alt="Document Preview" class="w-full h-auto object-cover max-h-[200px]" src="" />
+<button type="button" id="doc-remove-btn" class="absolute top-2 right-2 bg-surface-container-lowest/90 text-error p-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center shadow-sm z-10">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Live Selfie -->
+<div class="flex flex-col gap-xs pb-sm border-b border-surface-variant">
+<label class="text-label-md font-label-md text-on-surface">Live selfie <span class="text-secondary font-normal ml-1">(Optional)</span></label>
+<div id="selfie-dropzone" class="flex items-start gap-md relative" style="cursor:pointer;">
+<input type="file" id="selfie-input" accept="image/*" class="hidden" />
+<div id="selfie-preview-wrap" class="w-16 h-16 rounded border border-outline-variant overflow-hidden shrink-0 bg-surface-container relative group hidden">
+<img id="selfie-preview" alt="Selfie Preview" class="w-full h-full object-cover" src="" />
+<button type="button" id="selfie-remove-btn" class="absolute inset-0 bg-black/40 text-white p-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center shadow-sm z-10">
+<span class="material-symbols-outlined text-[24px]">delete</span>
+</button>
+</div>
+<div class="dropzone-content w-16 h-16 flex items-center justify-center rounded border border-dashed border-outline-variant shrink-0 bg-surface-container">
+<span class="material-symbols-outlined text-secondary">face</span>
+</div>
+<div class="flex flex-col gap-sm items-start justify-center h-16">
+<button type="button" onclick="document.getElementById('selfie-input').click(); event.stopPropagation();" class="border border-outline-variant text-primary px-3 py-1 rounded text-label-md font-label-md hover:bg-surface-container-low transition-colors bg-white">Browse selfie</button>
+<p class="text-label-sm font-label-sm text-secondary hidden md:block">Used for biometric face verification against the document.</p>
+</div>
+</div>
+</div>
+<!-- Document Liveness Video -->
+<div class="flex flex-col gap-xs pb-sm">
+<label class="text-label-md font-label-md text-on-surface">Document liveness video <span class="text-secondary font-normal ml-1">(Optional)</span></label>
+<div id="video-dropzone" class="relative" style="cursor:pointer;">
+<input type="file" id="video-input" accept="video/*" class="hidden" />
+<div id="video-drop-content" class="dropzone-content flex gap-sm items-center">
+<button type="button" onclick="document.getElementById('video-input').click(); event.stopPropagation();" class="border border-outline-variant text-primary px-3 py-1.5 rounded text-label-md font-label-md hover:bg-surface-container-low transition-colors bg-white flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">folder</span> Browse
+</button>
+<button type="button" id="record-btn" onclick="event.stopPropagation();" class="border border-outline-variant text-primary px-3 py-1.5 rounded text-label-md font-label-md hover:bg-surface-container-low transition-colors bg-white flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">videocam</span> Record 3s
+</button>
+<span id="liveness-countdown" class="text-label-sm text-error font-medium"></span>
+</div>
+<div class="flex items-center justify-between w-full mt-2">
+<span id="video-filename" class="video-filename hidden text-body-sm text-primary font-medium truncate"></span>
+<button type="button" id="video-remove-btn" class="btn-remove hidden text-error hover:text-error-container material-symbols-outlined text-[20px] rounded" onclick="event.stopPropagation();">close</button>
+</div>
+<p class="text-label-sm font-label-sm text-secondary mt-1">Helps detect screen replays or printed attacks.</p>
+</div>
+</div>
+<!-- Actions -->
+<div class="mt-sm flex flex-col gap-sm pt-sm border-t border-surface-variant">
+<button type="submit" id="submit-btn" class="bg-primary-container text-on-primary w-full py-2.5 rounded-lg text-label-md font-label-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-sm disabled:opacity-50">
+<span id="loading-spinner" class="material-symbols-outlined text-[18px] animate-spin hidden">progress_activity</span>
+<span class="material-symbols-outlined text-[18px] icon-policy">policy</span> 
+<span class="btn-text">Run security screening</span>
+</button>
+<div class="flex items-center justify-center gap-xs text-secondary">
+<span class="material-symbols-outlined text-[14px]">lock</span>
+<span class="text-label-sm font-label-sm">Files used only for this session</span>
+</div>
+</div>
+</form>
+</aside>
+<!-- Right Column: Screening Result (62%) -->
+<section class="md:col-span-8 flex flex-col gap-md w-full">
+<!-- Placeholder State -->
+<div id="results-placeholder" class="card p-xl flex flex-col items-center justify-center text-center gap-md border-t-4 border-t-surface-variant min-h-[400px]">
+<span class="material-symbols-outlined text-[64px] text-surface-variant">search_check</span>
+<h3 class="text-headline-md font-headline-md text-primary">No Analysis Run Yet</h3>
+<p class="text-body-md text-secondary max-w-[400px]">Upload a document and initiate screening to view risk scores, tampering heuristics, and biometric verification.</p>
+</div>
+<!-- Active Result State -->
+<div id="results-content" class="hidden flex-col gap-md w-full">
+<!-- Result Header & Banner -->
+<div id="verdict-banner" class="card p-md flex flex-col gap-md border-t-4 border-t-primary transition-colors duration-300">
+<div class="flex justify-between items-center border-b border-surface-variant pb-sm">
+<div class="flex flex-col">
+<span class="text-label-sm font-label-sm text-secondary uppercase tracking-wider">Session</span>
+<span class="text-body-sm font-body-sm font-mono text-on-surface">Live Result</span>
+</div>
+</div>
+<div class="flex items-center gap-lg">
+<!-- Circular Score -->
+<div class="score-dial relative w-24 h-24 flex items-center justify-center shrink-0 rounded-full" aria-label="Risk score 0 out of 100">
+<div class="absolute flex flex-col items-center">
+<span id="risk-score-val" class="text-headline-lg font-headline-lg font-bold text-on-surface leading-none">0</span>
+<span class="text-[10px] text-secondary font-medium">/ 100</span>
+</div>
+</div>
+<div class="flex flex-col gap-sm flex-grow">
+<div class="flex gap-2">
+<span id="verdict-badge" class="verdict-badge bg-primary text-white">UNKNOWN RISK</span>
+</div>
+<div class="bg-surface-container-low p-sm rounded border border-surface-variant">
+<h4 class="text-label-sm font-label-sm text-secondary uppercase mb-1">Review reasons / Flags</h4>
+<div id="flags-list" class="text-body-sm font-body-sm flex flex-col gap-1"></div>
+</div>
+</div>
+</div>
+<!-- Score Calculation Table -->
+<div id="score-breakdown-container" class="mt-xs hidden">
+<h3 class="text-label-md font-label-md text-on-surface mb-2">How the score was calculated</h3>
+<div class="border border-surface-variant rounded overflow-hidden">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-surface-variant text-label-sm font-label-sm text-secondary">
+<th class="py-2 px-3 font-medium">Component</th>
+<th class="py-2 px-3 font-medium text-right">Points</th>
+<th class="py-2 px-3 font-medium text-right">Max</th>
+<th class="py-2 px-3 font-medium">Reason</th>
+</tr>
+</thead>
+<tbody id="score-breakdown-body" class="text-body-sm font-body-sm text-on-surface">
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- Detail Cards Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-md">
+<!-- OCR & Validation -->
+<div class="card p-md flex flex-col gap-sm">
+<div class="flex justify-between items-center border-b border-surface-variant pb-xs">
+<h3 class="text-label-md font-label-md text-on-surface flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-secondary">text_snippet</span> OCR &amp; Validation</h3>
+<span id="ocr-badge" class="bg-surface-variant text-on-surface-variant px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border">N/A</span>
+</div>
+<div id="ocr-details" class="text-body-sm font-body-sm">
+<table class="data-table">
+<tbody id="ocr-table-body"></tbody>
+</table>
+</div>
+</div>
+<!-- Tamper Analysis -->
+<div class="card p-md flex flex-col gap-sm">
+<div class="flex justify-between items-center border-b border-surface-variant pb-xs">
+<h3 class="text-label-md font-label-md text-on-surface flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-secondary">search</span> Tamper Analysis</h3>
+<span id="tamper-badge" class="bg-surface-variant text-on-surface-variant px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border">N/A</span>
+</div>
+<div id="tamper-details" class="grid grid-cols-2 gap-x-4 gap-y-2 text-body-sm font-body-sm mb-2">
+<div class="flex justify-between"><span class="text-secondary text-label-sm">ELA</span> <span id="metric-ela" class="font-mono">0%</span></div>
+<div class="flex justify-between"><span class="text-secondary text-label-sm">Edge</span> <span id="metric-edge" class="font-mono">0%</span></div>
+<div class="flex justify-between"><span class="text-secondary text-label-sm">Wavelet</span> <span id="metric-wavelet" class="font-mono">0%</span></div>
+<div class="flex justify-between"><span class="text-secondary text-label-sm">Copy-Move</span> <span id="metric-copymove" class="font-mono">0%</span></div>
+<div id="exif-metric-item" class="flex justify-between col-span-2 hidden"><span class="text-secondary text-label-sm">Metadata/EXIF</span> <span id="metric-exif" class="font-mono">0%</span></div>
+</div>
+<div id="ela-heatmap-container" class="h-auto w-full bg-surface-container rounded border border-surface-variant flex items-center justify-center overflow-hidden relative hidden">
+<img id="ela-heatmap-img" class="w-full h-auto" src="" alt="Heatmap" />
+<span class="absolute bottom-1 left-1 text-[10px] text-secondary font-mono z-10 bg-white/80 px-1 rounded shadow-sm">Forensic Heatmap</span>
+</div>
+</div>
+<!-- Face Verification -->
+<div class="card p-md flex flex-col gap-sm">
+<div class="flex justify-between items-center border-b border-surface-variant pb-xs">
+<h3 class="text-label-md font-label-md text-on-surface flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-secondary">face</span> Face Verification</h3>
+<span id="face-badge" class="bg-surface-variant text-on-surface-variant px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border">N/A</span>
+</div>
+<div id="face-details" class="flex flex-col gap-2 text-body-sm font-body-sm overflow-auto">
+<p id="face-summary" class="text-secondary italic">No selfie uploaded</p>
+</div>
+</div>
+<!-- Document Liveness -->
+<div class="card p-md flex flex-col gap-sm">
+<div class="flex justify-between items-center border-b border-surface-variant pb-xs">
+<h3 class="text-label-md font-label-md text-on-surface flex items-center gap-1"><span class="material-symbols-outlined text-[16px] text-secondary">animation</span> Doc Liveness</h3>
+<span id="liveness-badge" class="bg-surface-variant text-on-surface-variant px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-outline-variant">N/A</span>
+</div>
+<div id="liveness-details" class="text-body-sm font-body-sm overflow-auto">
+<p class="text-secondary italic mb-2">No video provided. Review-only parameters.</p>
+</div>
+</div>
+</div>
+<!-- JSON Disclosure -->
+<details class="card p-3 border-dashed border-outline-variant group cursor-pointer hover:bg-surface-container-lowest transition-colors mt-sm">
+<summary class="flex items-center gap-2 text-label-sm font-label-sm text-secondary outline-none select-none">
+<span class="material-symbols-outlined text-[16px] group-open:rotate-90 transition-transform">chevron_right</span>
+View complete JSON response
+</summary>
+<div class="mt-2 p-2 bg-surface-container rounded text-[11px] font-mono text-on-surface-variant overflow-x-auto max-h-48 border border-surface-variant">
+<pre id="raw-json-output">{}</pre>
+</div>
+</details>
+</div>
+</section>
+</main>
+<script src="app.js"></script>
+</body></html>
