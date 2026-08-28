@@ -335,14 +335,14 @@ function renderResults(data) {
         ocrBadge.className = `module-tag ${isSuccess || ocr.status === 'NOT_APPLICABLE' ? 'badge-success' : 'badge-danger'}`;
 
         const rows = [
-            ['Document Type', ocr.mrz_type || ocr.document_code || ocr.document_type || 'N/A'],
-            ['Issuer Country', ocr.issuer_code || 'N/A'],
-            ['Holder Name', `${ocr.given_name || ''} ${ocr.surname || ''}`.trim() || 'N/A'],
+            ['Document Type', ocr.document_type || ocr.mrz_type || ocr.document_code || 'N/A'],
+            ['Issuer Country', ocr.issuer_code || ocr.country || ocr.nationality || 'N/A'],
+            ['Holder Name', `${ocr.given_name || ocr.given_names || ''} ${ocr.surname || ''}`.trim() || ocr.name || ocr.holder_name || 'N/A'],
             ['Document Number', ocr.document_number || 'N/A'],
-            ['Date of Birth', ocr.birth_date || 'N/A'],
+            ['Date of Birth', ocr.birth_date || ocr.date_of_birth || 'N/A'],
             ['Sex / Gender', ocr.sex || 'N/A'],
             ['Expiry Date', ocr.expiry_date || 'N/A'],
-            ['Checksum Validity', ocr.checksum_valid === true ? '✓ Passed (All check digits valid)' : (ocr.checksum_valid === false ? '✗ FAILED validation' : 'N/A')]
+            ['Checksum Validity', ocr.checksum_valid === true ? '✓ Passed (All check digits valid)' : (ocr.checksum_valid === false ? '✗ FAILED (Invalid/Forged MRZ)' : 'N/A')]
         ];
 
         rows.forEach(([label, val]) => {

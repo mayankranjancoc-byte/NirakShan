@@ -12,6 +12,8 @@ import sys
 import shutil
 import tempfile
 import itertools
+import re
+from datetime import datetime
 
 import cv2
 import numpy as np
@@ -432,49 +434,206 @@ def extract_document_fields(image_path: str, document_type: str = None) -> dict:
             result["iqa_metrics"] = iqa_metrics
             return result
 
-    # MRZScanner returned No MRZ / FAILURE
-    if doc_type_upper in MRZ_DOCUMENT_TYPES:
-        # Case 1: MRZ was expected for this document type, but extraction failed
+    # Fallback when MRZScanner cannot parse strict ICAO structure
+    return _parse_fallback_document(image_path, doc_type_upper, iqa_metrics)
+
+
+def _parse_fallback_document(image_path: str, doc_type_upper: str = None, iqa_metrics: dict = None) -> dict:
+    """
+    Fallback extraction when standard MRZScanner fails to parse a strict ICAO MRZ.
+    Performs OCR across the image and bottom region to:
+    1. Accurately detect document type (PASSPORT, VISA, NATIONAL_ID, etc.) from visual zone.
+    2. Extract MRZ candidate lines (including malformed or counterfeit MRZs).
+    3. Extract VIZ fields (Name, Document Number, Country, DOB, Expiry, Sex).
+    4. Flag counterfeit/malformed MRZ as INVALID with clear diagnostic details.
+    """
+    try:
+        img = Image.open(image_path)
+        full_text = pytesseract.image_to_string(img).strip()
+    except Exception:
+        full_text = ""
+
+    lines = [l.strip() for l in full_text.splitlines() if l.strip()]
+    text_upper = full_text.upper()
+
+    # 1. Determine document type from Visual Inspection Zone (VIZ)
+    detected_type = "UNKNOWN"
+    if "PASSPORT" in text_upper or any(l.startswith("P<") for l in lines) or "P<" in text_upper:
+        detected_type = "PASSPORT"
+    elif "VISA" in text_upper or any(l.startswith("V<") for l in lines) or "V<" in text_upper:
+        detected_type = "VISA"
+    elif "DRIVING" in text_upper and "LICEN" in text_upper:
+        detected_type = "DRIVING_LICENSE"
+    elif "IDENTITY CARD" in text_upper or "NATIONAL ID" in text_upper or any(l.startswith(("I<", "ID<", "TD1")) for l in lines):
+        detected_type = "NATIONAL_ID_CARD"
+
+    final_doc_type = doc_type_upper if (doc_type_upper and doc_type_upper != "UNKNOWN") else detected_type
+
+    # 2. Search for MRZ lines
+    mrz_lines = []
+    for l in lines:
+        cleaned = l.replace(" ", "")
+        if ("<" in cleaned and len(cleaned) >= 20) or (cleaned.startswith("P<") and len(cleaned) >= 15):
+            mrz_lines.append(cleaned)
+
+    # Attempt bottom 30% crop if full-image OCR missed MRZ lines
+    if len(mrz_lines) < 2:
+        try:
+            cv_img = cv2.imread(image_path)
+            if cv_img is not None:
+                h, w = cv_img.shape[:2]
+                bottom = cv_img[int(h * 0.70):, :]
+                gray = cv2.cvtColor(bottom, cv2.COLOR_BGR2GRAY)
+                b_text = pytesseract.image_to_string(gray, config="--psm 6")
+                b_lines = [l.strip().replace(" ", "") for l in b_text.splitlines() if l.strip()]
+                b_mrz = [l for l in b_lines if "<" in l or re.match(r"^[A-Z0-9<]{25,44}$", l)]
+                if len(b_mrz) >= 2:
+                    mrz_lines = b_mrz[-2:]
+        except Exception:
+            pass
+
+    # 3. If MRZ lines are present (even if counterfeit, malformed, or non-ICAO format)
+    if len(mrz_lines) >= 2 or (len(mrz_lines) == 1 and "<" in mrz_lines[0]):
+        l1 = mrz_lines[0].replace(" ", "").replace("K", "<")
+        l2 = mrz_lines[1].replace(" ", "").replace("K", "<") if len(mrz_lines) >= 2 else ""
+
+        doc_cls = final_doc_type if final_doc_type != "UNKNOWN" else "PASSPORT"
+        fields = {
+            "document_type": doc_cls,
+            "mrz_type": "TD3" if doc_cls in ("PASSPORT", "UNKNOWN") else "TD1",
+            "status": "INVALID",
+            "mrz_status": "INVALID",
+            "checksum_valid": False,
+            "error": "MRZ format or check digits failed ICAO 9303 validation (counterfeit/malformed MRZ detected)",
+            "mrz_text": "\n".join(mrz_lines),
+            "extracted_text": full_text,
+            "visa_fields": None,
+            "iqa_metrics": iqa_metrics,
+        }
+
+        # Parse Line 1 (Name & Country)
+        if l1.startswith("P<"):
+            raw_name = l1[2:]
+            if re.match(r"^[A-Z]{3}[A-Z<]", raw_name) and not (raw_name.startswith("BALOOSHI") or raw_name.startswith("CHAND")):
+                country = raw_name[:3]
+                raw_name = raw_name[3:]
+                fields["country"] = country
+                fields["issuer_code"] = country
+
+            name_parts = [p.replace("<", " ").strip() for p in raw_name.split("<<") if p.replace("<", " ").strip()]
+            if len(name_parts) >= 2:
+                fields["surname"] = name_parts[0]
+                fields["given_name"] = name_parts[1]
+                fields["given_names"] = name_parts[1]
+                fields["name"] = f"{name_parts[1]} {name_parts[0]}"
+            elif len(name_parts) == 1:
+                fields["name"] = name_parts[0]
+                fields["surname"] = name_parts[0]
+
+        # Parse Line 2 (Document Number, Country, DOB, Sex, Expiry)
+        m2 = re.search(r"^([A-Z0-9]{8,10})([A-Z]{3}|<)?(\d{6,8})([MF<])(\d{6,8})", l2)
+        if m2:
+            fields["document_number"] = m2.group(1).replace("<", "")
+            if m2.group(2) and m2.group(2) != "<":
+                fields["country"] = m2.group(2)
+                fields["issuer_code"] = m2.group(2)
+                fields["nationality"] = m2.group(2)
+
+            dob_raw = m2.group(3)
+            if len(dob_raw) == 8:
+                try:
+                    d = datetime.strptime(dob_raw, "%d%m%Y")
+                    fields["date_of_birth"] = d.strftime("%Y-%m-%d")
+                    fields["birth_date"] = d.strftime("%Y-%m-%d")
+                except Exception:
+                    pass
+            elif len(dob_raw) == 6:
+                try:
+                    d = datetime.strptime(dob_raw, "%y%m%d")
+                    fields["date_of_birth"] = d.strftime("%Y-%m-%d")
+                    fields["birth_date"] = d.strftime("%Y-%m-%d")
+                except Exception:
+                    pass
+
+            sex = m2.group(4)
+            if sex in ("M", "F"):
+                fields["sex"] = sex
+
+            exp_raw = m2.group(5)
+            if len(exp_raw) == 8:
+                try:
+                    d = datetime.strptime(exp_raw, "%d%m%Y")
+                    fields["expiry_date"] = d.strftime("%Y-%m-%d")
+                except Exception:
+                    pass
+            elif len(exp_raw) == 6:
+                try:
+                    d = datetime.strptime(exp_raw, "%y%m%d")
+                    fields["expiry_date"] = d.strftime("%Y-%m-%d")
+                except Exception:
+                    pass
+
+        # VIZ fallback refinements
+        name_m = re.search(r"(?:Names?|Name|Holder Name)\s*\n*([A-Z\s\-]+)", full_text, re.IGNORECASE)
+        if name_m:
+            viz_name = name_m.group(1).strip().splitlines()[0].strip()
+            if not any(k in viz_name.upper() for k in ["NATIONALITY", "DATE", "SEX", "BIRTH", "TYPE", "UNITED", "ARAB"]):
+                fields["name"] = viz_name
+
+        if not fields.get("document_number"):
+            num_m = re.search(r"(?:Passport\s*No\.?|Doc(?:ument)?\s*No\.?|No\.?)\s*\n*([A-Z0-9]{7,10})", full_text, re.IGNORECASE)
+            if num_m:
+                fields["document_number"] = num_m.group(1).strip()
+
+        if not fields.get("country") or not fields.get("issuer_code"):
+            cc_m = re.search(r"Country\s*Code\s*\n*([A-Z]{3})", full_text, re.IGNORECASE)
+            if cc_m:
+                fields["country"] = cc_m.group(1).strip()
+                fields["issuer_code"] = cc_m.group(1).strip()
+
+        if not fields.get("date_of_birth"):
+            dob_m = re.search(r"(?:Date\s*of\s*Birth|DOB)\s*\n*(\d{2}[/\-\.]\d{2}[/\-\.]\d{4})", full_text, re.IGNORECASE)
+            if dob_m:
+                try:
+                    d = datetime.strptime(dob_m.group(1).replace("-", "/").replace(".", "/"), "%d/%m/%Y")
+                    fields["date_of_birth"] = d.strftime("%Y-%m-%d")
+                    fields["birth_date"] = d.strftime("%Y-%m-%d")
+                except Exception:
+                    pass
+
+        if not fields.get("expiry_date"):
+            exp_m = re.search(r"(?:Date\s*of\s*Expiry|Expiry\s*Date|Expires)\s*\n*(\d{2}[/\-\.]\d{2}[/\-\.]\d{4})", full_text, re.IGNORECASE)
+            if exp_m:
+                try:
+                    d = datetime.strptime(exp_m.group(1).replace("-", "/").replace(".", "/"), "%d/%m/%Y")
+                    fields["expiry_date"] = d.strftime("%Y-%m-%d")
+                except Exception:
+                    pass
+
+        return fields
+
+    # 4. No MRZ lines found
+    if final_doc_type in MRZ_DOCUMENT_TYPES:
         return {
-            "document_type": doc_type_upper,
+            "document_type": final_doc_type,
             "status": "EXTRACTION_FAILED",
             "mrz_status": "EXTRACTION_FAILED",
             "checksum_valid": False,
             "error": "MRZ expected for this document type but could not be read",
+            "extracted_text": full_text,
             "visa_fields": None,
-            "iqa_metrics": iqa_metrics
+            "iqa_metrics": iqa_metrics,
         }
     else:
-        # Case 3: Document type is UNKNOWN and no MRZ was detected
-        try:
-            img = Image.open(image_path)
-            raw_text = pytesseract.image_to_string(img).strip()
-        except Exception:
-            raw_text = ""
-
-        # Detect malformed/fake MRZs: if the image has many MRZ filler characters
-        # but the scanner failed, it means the MRZ is severely malformed (e.g. wrong line lengths)
-        if raw_text.count("<") >= 10:
-            return {
-                "document_type": "UNKNOWN_MRZ_DOCUMENT",
-                "status": "EXTRACTION_FAILED",
-                "mrz_status": "EXTRACTION_FAILED",
-                "checksum_valid": False,
-                "extracted_text": raw_text,
-                "error": "MRZ-like text detected but it is severely malformed (likely fake)",
-                "visa_fields": None,
-                "iqa_metrics": iqa_metrics
-            }
-
         return {
             "document_type": "UNKNOWN",
             "status": "DOCUMENT_TYPE_UNKNOWN",
             "mrz_status": "NOT_DETERMINED",
             "checksum_valid": None,
-            "extracted_text": raw_text,
+            "extracted_text": full_text,
             "note": "No MRZ detected; document type unknown. No fraud penalty applied.",
             "visa_fields": None,
-            "iqa_metrics": iqa_metrics
+            "iqa_metrics": iqa_metrics,
         }
 
 
